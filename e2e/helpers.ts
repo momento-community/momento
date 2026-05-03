@@ -23,7 +23,13 @@ export function flutterText(
 ): Locator {
   const safe = text.replace(/"/g, '\\"');
   const op = opts.exact ? "=" : "*=";
-  return page.locator(`[aria-label${op}"${safe}"]`).first();
+  // Two paths because Flutter Semantics splits between aria-label (compound
+  // labels on parent groups, e.g. cards) and DOM text content (standalone
+  // Text widgets like the wordmark).
+  return page
+    .locator(`[aria-label${op}"${safe}"]`)
+    .or(page.getByText(text, { exact: opts.exact ?? false }))
+    .first();
 }
 
 /**
