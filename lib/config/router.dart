@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'env.dart';
 import '../core/firebase/providers.dart';
 import '../features/auth/auth_screen.dart';
 import '../features/create/create_screen.dart';
@@ -25,6 +26,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/splash',
     refreshListenable: refresh,
     redirect: (ctx, state) {
+      // In mock-data builds (e2e + offline UI dev) the auth gate is wide
+      // open. Production builds can never set USE_MOCK_DATA=true unless the
+      // pipeline is misconfigured.
+      if (Env.useMockData) return null;
       final loc = state.matchedLocation;
       final user = auth.currentUser;
       final unauthed = user == null;

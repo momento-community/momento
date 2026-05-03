@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../config/env.dart';
 import '../../config/theme.dart';
 import '../../core/firebase/providers.dart';
 import '../../core/widgets/momento_logo.dart';
@@ -23,6 +24,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   Future<void> _decideRoute() async {
     await Future.delayed(const Duration(milliseconds: 1400));
     if (!mounted) return;
+    if (Env.useMockData) {
+      // E2e / offline UI dev: skip auth flow entirely.
+      context.go('/discover');
+      return;
+    }
     final user = ref.read(firebaseAuthProvider).currentUser;
     if (user != null) {
       context.go('/discover');

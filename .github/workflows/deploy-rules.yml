@@ -33,11 +33,10 @@ jobs:
 
       - name: Deploy
         env:
-          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MOMENTO_B23C0 }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: |
-          echo "$GOOGLE_APPLICATION_CREDENTIALS_JSON" > "$RUNNER_TEMP/sa.json"
-          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
           firebase deploy \
             --only firestore:rules,firestore:indexes,storage \
             --project momento-b23c0 \
+            --token "$FIREBASE_TOKEN" \
             --non-interactive

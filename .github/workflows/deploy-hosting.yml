@@ -9,6 +9,7 @@ on:
       - "pubspec.yaml"
       - "pubspec.lock"
       - "firebase.json"
+      - ".firebaserc"
       - ".github/workflows/deploy-hosting.yml"
   workflow_dispatch:
 
@@ -43,10 +44,19 @@ jobs:
             --no-tree-shake-icons \
             --dart-define=GOOGLE_MAPS_KEY_WEB="$GOOGLE_MAPS_KEY_WEB"
 
-      - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
+      - uses: actions/setup-node@v4
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MOMENTO_B23C0 }}
-          projectId: momento-b23c0
-          channelId: live
+          node-version: "20"
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy to Firebase Hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          firebase deploy \
+            --only hosting \
+            --project momento-b23c0 \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
