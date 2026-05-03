@@ -14,9 +14,7 @@ test.describe("filter (mock-data)", () => {
   });
 
   test("opens the filter sheet from the tune icon", async ({ page }) => {
-    // The tune icon is in an IconButton with tooltip 'Filter'. In Flutter
-    // semantics that's exposed as aria-label="Filter".
-    await page.locator('[aria-label="Filter"]').first().click();
+    await page.getByRole("button", { name: "Filter" }).click();
     await expect(flutterText(page, "Filter Momentos")).toBeVisible({
       timeout: 8_000,
     });
@@ -31,15 +29,17 @@ test.describe("filter (mock-data)", () => {
       flutterText(page, "Blue Note Jazz Session"),
     ).toBeVisible({ timeout: 10_000 });
 
-    await page.locator('[aria-label="Filter"]').first().click();
+    await page.getByRole("button", { name: "Filter" }).click();
     await expect(flutterText(page, "Filter Momentos")).toBeVisible();
 
-    // Tap the "Art" chip inside the sheet.
-    await flutterText(page, "Art").click();
-    await flutterText(page, "Apply Filters").click();
+    // CategoryChip's a11y name is exactly the chip label.
+    await page.getByRole("button", { name: "Art", exact: true }).click();
+    await page.getByRole("button", { name: "Apply Filters" }).click();
 
+    // The Music card uses category badge "MUSIC" (caps); CSS substring match
+    // is case-sensitive so this filter actually removes the row.
     await expect(
-      page.locator('[aria-label="Blue Note Jazz Session"]'),
+      page.locator('[aria-label*="Blue Note Jazz Session"]'),
     ).toHaveCount(0, { timeout: 8_000 });
     await expect(
       flutterText(page, "Abstract Realities Vernissage"),
@@ -47,10 +47,10 @@ test.describe("filter (mock-data)", () => {
   });
 
   test("reset clears all filter selections", async ({ page }) => {
-    await page.locator('[aria-label="Filter"]').first().click();
-    await flutterText(page, "Music").click();
-    await flutterText(page, "Reset").click();
-    await flutterText(page, "Apply Filters").click();
+    await page.getByRole("button", { name: "Filter" }).click();
+    await page.getByRole("button", { name: "Music", exact: true }).click();
+    await page.getByRole("button", { name: "Reset" }).click();
+    await page.getByRole("button", { name: "Apply Filters" }).click();
 
     await expect(
       flutterText(page, "Blue Note Jazz Session"),
