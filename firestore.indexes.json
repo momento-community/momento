@@ -1,0 +1,47 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "momentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_active",          "order": "ASCENDING" },
+        { "fieldPath": "start_datetime",     "order": "ASCENDING" },
+        { "fieldPath": "location_geohash",   "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "momentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "organizer_id",       "order": "ASCENDING" },
+        { "fieldPath": "created_at",         "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "momentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_active",          "order": "ASCENDING" },
+        { "fieldPath": "expires_at",         "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "momentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_active",          "order": "ASCENDING" },
+        { "fieldPath": "category",           "order": "ASCENDING" },
+        { "fieldPath": "start_datetime",     "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "follows",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "follower_id",        "order": "ASCENDING" },
+        { "fieldPath": "created_at",         "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
