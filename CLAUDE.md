@@ -85,7 +85,7 @@ A separate prod Firebase project will be split off before public launch.
 - **Storage:** default bucket created. ✅ done
 - **Deploy rules + indexes** the first time: `firebase deploy --only firestore:rules,firestore:indexes,storage --project momento-b23c0`. CI does this on every push touching those files.
 - **GitHub Actions secrets** for CI:
-  - `FIREBASE_SERVICE_ACCOUNT_MOMENTO_B23C0` — JSON service-account key with Firebase Admin + Hosting Admin roles. Generate via Firebase Console → Project Settings → Service Accounts → Generate new private key.
+  - `FIREBASE_TOKEN` — generated locally via `firebase login:ci` (browser flow), pasted into GitHub → Settings → Secrets → Actions. We use this instead of a service-account JSON because the GCP org policy disables service-account-key creation.
   - `GOOGLE_MAPS_KEY_WEB` — when ready, restricted Maps JS API key for hosting domain.
 - **Apple Sign-in (later):** configure Service ID + Key in Firebase Auth + Apple Developer Console + add Apple capability in Xcode signing.
 - **Google Maps (later):** create + restrict 3 keys (iOS, Android, Web). Pass via `--dart-define=GOOGLE_MAPS_KEY_*=...`. Web also needs the Maps JS `<script>` in `web/index.html`.

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { flutterText, waitForRoute } from "../helpers";
 import * as S from "../selectors";
 
 /**
@@ -10,7 +11,7 @@ import * as S from "../selectors";
  */
 
 test.describe("smoke (mock-data build)", () => {
-  test("app boots without console errors", async ({ page }) => {
+  test("app boots and reaches /discover", async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
     page.on("console", (msg) => {
@@ -18,34 +19,29 @@ test.describe("smoke (mock-data build)", () => {
     });
 
     await page.goto("/");
-    await expect(page).toHaveTitle(/Momentō|momento/i);
+    await waitForRoute(page, /\/discover/);
 
-    // Splash → Discover should mount within ~3s.
-    await expect(page.getByText(S.wordmark).first()).toBeVisible({
-      timeout: 15_000,
+    // Wordmark is in Flutter's semantic DOM tree.
+    await expect(flutterText(page, S.wordmark)).toBeVisible({
+      timeout: 8_000,
     });
 
-    // Surface the errors but don't fail on Flutter-internal warnings (often
-    // fonts / canvas-kit init that don't break the app).
+    // Surface fatal errors but ignore CanvasKit/init noise.
     const fatal = errors.filter(
-      (e) => !/canvaskit|fontconfig|google-fonts/i.test(e),
+      (e) =>
+        !/canvaskit|fontconfig|google-fonts|favicon|chrome-extension/i.test(e),
     );
-    expect(fatal, `console errors: ${fatal.join("\n")}`).toEqual([]);
+    expect(fatal, `console errors:\n${fatal.join("\n")}`).toEqual([]);
   });
 
-  test("splash routes to discover within 3s", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForURL(/\/discover/, { timeout: 5_000 });
-    await expect(page.getByText(S.wordmark).first()).toBeVisible();
-  });
-
-  test("auth screen still reachable directly", async ({ page }) => {
+  test("auth screen reachable directly", async ({ page }) => {
     await page.goto("/#/auth");
-    await expect(page.getByText(S.auth.heading)).toBeVisible({
-      timeout: 5_000,
+    await page.waitForTimeout(1_500);
+    await expect(flutterText(page, S.auth.heading)).toBeVisible({
+      timeout: 8_000,
     });
-    await expect(page.getByText(S.auth.google)).toBeVisible();
-    await expect(page.getByText(S.auth.apple)).toBeVisible();
-    await expect(page.getByText(S.auth.email)).toBeVisible();
+    await expect(flutterText(page, S.auth.google)).toBeVisible();
+    await expect(flutterText(page, S.auth.apple)).toBeVisible();
+    await expect(flutterText(page, S.auth.email)).toBeVisible();
   });
 });

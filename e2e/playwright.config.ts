@@ -22,10 +22,17 @@ export default defineConfig({
   },
   projects: [
     {
-      name: "chromium-iphone-14-pro",
+      // iPhone 14 Pro frame is the design canvas (393×852). The default
+      // `devices["iPhone 14 Pro"]` preset uses WebKit; we override to
+      // Chromium so the same browser binary covers both projects (smaller
+      // CI install, no Safari-specific quirks for now).
+      name: "iphone-14-pro-viewport",
       use: {
-        ...devices["iPhone 14 Pro"],
-        // iPhone 14 Pro frame is the design canvas (390×844 @ 3x).
+        browserName: "chromium",
+        viewport: { width: 393, height: 852 },
+        deviceScaleFactor: 3,
+        isMobile: true,
+        hasTouch: true,
       },
     },
     {
