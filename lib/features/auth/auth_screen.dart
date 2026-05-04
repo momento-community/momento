@@ -8,6 +8,7 @@ import '../../config/theme.dart';
 import '../../core/firebase/providers.dart';
 import '../../core/widgets/momento_button.dart';
 import '../../core/widgets/momento_logo.dart';
+import '../../core/widgets/responsive_content.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -65,7 +66,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
-          child: Column(
+          child: ResponsiveContent(
+            maxWidth: 480,
+            padding: EdgeInsets.zero,
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
@@ -153,6 +157,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

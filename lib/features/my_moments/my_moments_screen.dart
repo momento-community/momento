@@ -10,6 +10,7 @@ import '../../core/models/momento.dart';
 import '../../core/widgets/momento_button.dart';
 import '../../core/widgets/momento_card.dart';
 import '../../core/widgets/momento_logo.dart';
+import '../../core/widgets/responsive_content.dart';
 import '../../core/widgets/section_tabs.dart';
 import '../../core/widgets/slide_up_route.dart';
 import '../momento_detail/momento_detail_screen.dart';
@@ -34,41 +35,47 @@ class _MyMomentsScreenState extends ConsumerState<MyMomentsScreen> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.md,
-                AppSpacing.lg,
-                AppSpacing.md,
+        child: ResponsiveContent(
+          maxWidth: 720,
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.md,
+                  AppSpacing.lg,
+                  AppSpacing.md,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const MomentoLogo(),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text('My Moments', style: AppText.headlineMedium),
+                  ],
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const MomentoLogo(),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text('My Moments', style: AppText.headlineMedium),
-                ],
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg),
+                // Label matches Profile's tab so the user sees the same
+                // copy for the same data set everywhere.
+                child: SectionTabs(
+                  labels: const ['Created Momentos', 'Liked'],
+                  activeIndex: _tab,
+                  onSelect: (i) => setState(() => _tab = i),
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg),
-              child: SectionTabs(
-                labels: const ['Organised', 'Liked'],
-                activeIndex: _tab,
-                onSelect: (i) => setState(() => _tab = i),
+              const Divider(color: AppColors.divider, height: 1),
+              Expanded(
+                child: _tab == 0
+                    ? _OrganisedTab(items: organised)
+                    : _LikedTab(items: liked),
               ),
-            ),
-            const Divider(color: AppColors.divider, height: 1),
-            Expanded(
-              child: _tab == 0
-                  ? _OrganisedTab(items: organised)
-                  : _LikedTab(items: liked),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

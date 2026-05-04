@@ -12,6 +12,7 @@ import '../../core/models/momento.dart';
 import '../../core/widgets/follow_button.dart';
 import '../../core/widgets/momento_button.dart';
 import '../../core/widgets/momento_card.dart';
+import '../../core/widgets/responsive_content.dart';
 import '../../core/widgets/slide_up_route.dart';
 import '../discover/discover_providers.dart';
 import '../organizer/organizer_detail_screen.dart';
@@ -91,7 +92,12 @@ class _MomentoDetailScreenState extends ConsumerState<MomentoDetailScreen> {
                       AppSpacing.lg,
                       AppSpacing.xl,
                     ),
-                    child: Column(
+                    // Hero stays full-bleed (decorative); the body text +
+                    // analytics sit in a 720 column for readability.
+                    child: ResponsiveContent(
+                      maxWidth: 720,
+                      padding: EdgeInsets.zero,
+                      child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(m.title, style: AppText.headlineMedium),
@@ -159,6 +165,7 @@ class _MomentoDetailScreenState extends ConsumerState<MomentoDetailScreen> {
                         ),
                         const SizedBox(height: 100),
                       ],
+                    ),
                     ),
                   ),
                 ),
@@ -609,7 +616,12 @@ class _StickyReserveBar extends StatelessWidget {
         AppSpacing.lg,
         AppSpacing.md + MediaQuery.of(context).viewPadding.bottom,
       ),
-      child: Row(
+      // Bar background spans full viewport; inner row caps at 560 so the
+      // CTA doesn't stretch ear-to-ear on desktop.
+      child: ResponsiveContent(
+        maxWidth: 560,
+        padding: EdgeInsets.zero,
+        child: Row(
         children: [
           Column(
             mainAxisSize: MainAxisSize.min,
@@ -641,6 +653,7 @@ class _StickyReserveBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

@@ -7,6 +7,7 @@ import '../../config/theme.dart';
 import '../../core/models/momento.dart';
 import '../../core/widgets/momento_card.dart';
 import '../../core/widgets/momento_logo.dart';
+import '../../core/widgets/responsive_content.dart';
 import '../../core/widgets/slide_up_route.dart';
 import '../../shared/filter_state.dart';
 import '../filter/filter_bottom_sheet.dart';
@@ -26,34 +27,38 @@ class DiscoverScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       body: SafeArea(
         bottom: false,
-        child: Column(
-          children: [
-            _TopBar(filter: filter),
-            Expanded(
-              child: stream.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(
-                    valueColor:
-                        AlwaysStoppedAnimation(AppColors.primary),
-                  ),
-                ),
-                error: (e, _) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.xl),
-                    child: Text(
-                      'Could not load Momentos.\n$e',
-                      textAlign: TextAlign.center,
-                      style: AppText.bodySmall
-                          .copyWith(color: AppColors.error),
+        child: ResponsiveContent(
+          maxWidth: 1080,
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: [
+              _TopBar(filter: filter),
+              Expanded(
+                child: stream.when(
+                  loading: () => const Center(
+                    child: CircularProgressIndicator(
+                      valueColor:
+                          AlwaysStoppedAnimation(AppColors.primary),
                     ),
                   ),
+                  error: (e, _) => Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.xl),
+                      child: Text(
+                        'Could not load Momentos.\n$e',
+                        textAlign: TextAlign.center,
+                        style: AppText.bodySmall
+                            .copyWith(color: AppColors.error),
+                      ),
+                    ),
+                  ),
+                  data: (_) => feed.isEmpty
+                      ? const _EmptyState()
+                      : _MasonryFeed(items: feed),
                 ),
-                data: (_) => feed.isEmpty
-                    ? const _EmptyState()
-                    : _MasonryFeed(items: feed),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -159,27 +164,33 @@ class _MasonryFeed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MasonryGridView.count(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        AppSpacing.sm,
-        AppSpacing.md,
-        AppSpacing.xl,
-      ),
-      crossAxisCount: 2,
-      mainAxisSpacing: AppSpacing.md,
-      crossAxisSpacing: AppSpacing.md,
-      itemCount: items.length,
-      itemBuilder: (_, i) {
-        final m = items[i];
-        // Pseudo-random but stable per-id height to mimic the design fixture.
-        final h = 150.0 + ((m.id.hashCode % 5) * 22);
-        return MomentoCard(
-          momento: m,
-          imageHeight: h,
-          onTap: () => Navigator.of(context).push(
-            slideUpRoute(MomentoDetailScreen(momento: m)),
+    // adaptiveCols reads the *constrained* width — Discover sits inside a
+    // 1080-wide column, so this returns 2 / 3 / 4 as the viewport grows.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return MasonryGridView.count(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.sm,
+            AppSpacing.md,
+            AppSpacing.xl,
           ),
+          crossAxisCount: adaptiveCols(constraints.maxWidth),
+          mainAxisSpacing: AppSpacing.md,
+          crossAxisSpacing: AppSpacing.md,
+          itemCount: items.length,
+          itemBuilder: (_, i) {
+            final m = items[i];
+            // Pseudo-random but stable per-id height to mimic the design fixture.
+            final h = 150.0 + ((m.id.hashCode % 5) * 22);
+            return MomentoCard(
+              momento: m,
+              imageHeight: h,
+              onTap: () => Navigator.of(context).push(
+                slideUpRoute(MomentoDetailScreen(momento: m)),
+              ),
+            );
+          },
         );
       },
     );

@@ -14,6 +14,7 @@ import '../../core/seeds/demo_seed.dart';
 import '../../core/widgets/momento_button.dart';
 import '../../core/widgets/momento_card.dart';
 import '../../core/widgets/momento_logo.dart';
+import '../../core/widgets/responsive_content.dart';
 import '../../core/widgets/section_tabs.dart';
 import '../../core/widgets/slide_up_route.dart';
 import '../momento_detail/momento_detail_screen.dart';
@@ -49,8 +50,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         bottom: false,
-        child: CustomScrollView(
-          slivers: [
+        child: ResponsiveContent(
+          maxWidth: 720,
+          padding: EdgeInsets.zero,
+          child: CustomScrollView(
+            slivers: [
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(
@@ -221,7 +225,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

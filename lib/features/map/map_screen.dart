@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../config/theme.dart';
 import '../../core/models/momento.dart';
+import '../../core/widgets/responsive_content.dart';
 import '../../core/widgets/slide_up_route.dart';
 import '../discover/discover_providers.dart';
 import '../filter/filter_bottom_sheet.dart';
@@ -85,10 +86,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             onMapCreated: (c) => _controller = c,
             onTap: (_) => setState(() => _selected = null),
           ),
-          // Top chrome
+          // Top chrome — map fills the viewport (intentional), but the
+          // search + filter chrome sits inside a 720 column so on desktop
+          // it's centered, not stretched edge to edge.
           SafeArea(
             bottom: false,
-            child: Padding(
+            child: ResponsiveContent(
+              maxWidth: 720,
               padding: const EdgeInsets.all(AppSpacing.md),
               child: Column(
                 children: [
@@ -110,13 +114,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               bottom: 0,
               child: SafeArea(
                 top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.md,
-                    AppSpacing.md,
-                    AppSpacing.md,
-                    AppSpacing.md,
-                  ),
+                child: ResponsiveContent(
+                  maxWidth: 560,
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   child: _CompactCard(
                     momento: _selected!,
                     onClose: () => setState(() => _selected = null),

@@ -9,6 +9,7 @@ import '../../config/theme.dart';
 import '../../core/firebase/providers.dart';
 import '../../core/models/momento.dart';
 import '../../core/widgets/momento_button.dart';
+import '../../core/widgets/responsive_content.dart';
 import '../../core/widgets/momento_logo.dart';
 import '../../core/widgets/section_tabs.dart';
 import '../../core/widgets/slide_up_route.dart';
@@ -29,7 +30,10 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Column(
+        child: ResponsiveContent(
+          maxWidth: 1080,
+          padding: EdgeInsets.zero,
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _Header(onClose: () => context.go('/profile')),
@@ -63,6 +67,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
               },
             ),
           ],
+        ),
         ),
       ),
     );

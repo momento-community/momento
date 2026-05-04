@@ -14,6 +14,7 @@ import '../../core/models/momento_category.dart';
 import '../../core/repositories/momento_repository.dart';
 import '../../core/widgets/category_chip.dart';
 import '../../core/widgets/momento_button.dart';
+import '../../core/widgets/responsive_content.dart';
 
 class CreateScreen extends ConsumerStatefulWidget {
   const CreateScreen({super.key});
@@ -193,7 +194,12 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           children: [
             _TopBar(onClose: () => context.go('/discover')),
             Expanded(
-              child: ListView(
+              // Form fits comfortably at 560 — wider just spreads the
+              // inputs and looks unanchored.
+              child: ResponsiveContent(
+                maxWidth: 560,
+                padding: EdgeInsets.zero,
+                child: ListView(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.lg,
                   AppSpacing.lg,
@@ -287,6 +293,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                   const SizedBox(height: AppSpacing.lg),
                 ],
               ),
+              ),
             ),
             _StickyPublish(
               used: used,
@@ -364,11 +371,12 @@ class _BecomeOrganisorPanelState
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+    // 560 keeps the green CTA from stretching ear-to-ear on desktop.
+    return ResponsiveContent(
+      maxWidth: 560,
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
               width: 96,
@@ -411,7 +419,6 @@ class _BecomeOrganisorPanelState
             ),
           ],
         ),
-      ),
     );
   }
 
@@ -714,7 +721,12 @@ class _StickyPublish extends StatelessWidget {
         ),
         boxShadow: AppShadows.lg,
       ),
-      child: Column(
+      // Background spans full viewport (docked-toolbar feel); inner content
+      // capped at 560 to match the form column above it.
+      child: ResponsiveContent(
+        maxWidth: 560,
+        padding: EdgeInsets.zero,
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
@@ -758,6 +770,7 @@ class _StickyPublish extends StatelessWidget {
             onPressed: busy ? null : onPublish,
           ),
         ],
+      ),
       ),
     );
   }

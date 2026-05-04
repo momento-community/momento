@@ -9,6 +9,7 @@ import '../../core/models/momento.dart';
 import '../../core/widgets/follow_button.dart';
 import '../../core/widgets/momento_button.dart';
 import '../../core/widgets/momento_card.dart';
+import '../../core/widgets/responsive_content.dart';
 import '../../core/widgets/slide_up_route.dart';
 import '../discover/discover_providers.dart';
 import '../momento_detail/momento_detail_screen.dart';
@@ -42,7 +43,10 @@ class OrganizerDetailScreen extends ConsumerWidget {
         },
         behavior: HitTestBehavior.opaque,
         child: SafeArea(
-          child: Column(
+          child: ResponsiveContent(
+            maxWidth: 1080,
+            padding: EdgeInsets.zero,
+            child: Column(
             children: [
               _Header(
                 organizerId: organizerId,
@@ -55,33 +59,37 @@ class OrganizerDetailScreen extends ConsumerWidget {
               Expanded(
                 child: hosted.isEmpty
                     ? _EmptyState(name: name)
-                    : MasonryGridView.count(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.md,
-                          AppSpacing.md,
-                          AppSpacing.md,
-                          AppSpacing.xl,
+                    : LayoutBuilder(
+                        builder: (context, constraints) =>
+                            MasonryGridView.count(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.md,
+                            AppSpacing.md,
+                            AppSpacing.md,
+                            AppSpacing.xl,
+                          ),
+                          crossAxisCount: adaptiveCols(constraints.maxWidth),
+                          mainAxisSpacing: AppSpacing.md,
+                          crossAxisSpacing: AppSpacing.md,
+                          itemCount: hosted.length,
+                          itemBuilder: (_, i) {
+                            final m = hosted[i];
+                            final h = 150.0 + ((m.id.hashCode % 5) * 22);
+                            return MomentoCard(
+                              momento: m,
+                              imageHeight: h,
+                              onTap: () => Navigator.of(context)
+                                  .pushReplacement(
+                                slideUpRoute(
+                                    MomentoDetailScreen(momento: m)),
+                              ),
+                            );
+                          },
                         ),
-                        crossAxisCount: 2,
-                        mainAxisSpacing: AppSpacing.md,
-                        crossAxisSpacing: AppSpacing.md,
-                        itemCount: hosted.length,
-                        itemBuilder: (_, i) {
-                          final m = hosted[i];
-                          final h = 150.0 + ((m.id.hashCode % 5) * 22);
-                          return MomentoCard(
-                            momento: m,
-                            imageHeight: h,
-                            onTap: () => Navigator.of(context)
-                                .pushReplacement(
-                              slideUpRoute(
-                                  MomentoDetailScreen(momento: m)),
-                            ),
-                          );
-                        },
                       ),
               ),
             ],
+          ),
           ),
         ),
       ),

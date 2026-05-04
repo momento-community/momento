@@ -9,11 +9,16 @@ import '../../core/widgets/momento_button.dart';
 import '../../shared/filter_state.dart';
 
 Future<void> showFilterBottomSheet(BuildContext context) {
+  // `constraints.maxWidth: 560` caps the sheet on tablet/desktop —
+  // showModalBottomSheet defaults to viewport-wide which on a 1920 screen
+  // makes the categories stretch awkwardly. The sheet is then centered
+  // by the system (constraints.maxWidth < screen width).
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.background,
     barrierColor: Colors.black.withValues(alpha: 0.27),
+    constraints: const BoxConstraints(maxWidth: 560),
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
     ),

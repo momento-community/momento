@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
 import '../../core/widgets/momento_button.dart';
 import '../../core/widgets/momento_logo.dart';
+import '../../core/widgets/responsive_content.dart';
 
 class _Slide {
   const _Slide({
@@ -69,7 +70,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Stack(
+        child: ResponsiveContent(
+          maxWidth: 480,
+          padding: EdgeInsets.zero,
+          child: Stack(
           children: [
             Column(
               children: [
@@ -142,6 +146,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ],
             ),
           ],
+        ),
         ),
       ),
     );
