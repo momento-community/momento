@@ -102,6 +102,27 @@ Full plan: [docs/roles-plan.md](docs/roles-plan.md).
 - **`onMomentoLikeChange` dropped.** `liked_by` is the source of truth; `like_count` is kept in sync atomically inside `toggleLike`'s transaction.
 - **Mock-data fallback.** Pass `--dart-define=USE_MOCK_DATA=true` to bypass Firestore and read the in-memory fixture from `lib/core/mock/mock_momentos.dart`. Default is false.
 
+## Storage CORS
+
+By default the Storage bucket only accepts requests from `*.web.app` and `*.firebaseapp.com`. Loading images from a custom domain (e.g. `momento.community`) gets blocked by browser CORS. Allowed origins live in [`storage.cors.json`](storage.cors.json) and are applied to the bucket with:
+
+```bash
+gsutil cors set storage.cors.json gs://momento-b23c0.firebasestorage.app
+gsutil cors get gs://momento-b23c0.firebasestorage.app   # verify
+```
+
+(If gsutil errors with "Reauthentication required", run `gcloud auth login` first.)
+
+Re-apply whenever you add a new origin (e.g. a staging domain). The file is the source of truth — keep `storage.cors.json` in sync with whatever is on the bucket.
+
+## OAuth authorized domains
+
+Firebase Auth only allows sign-in from explicitly authorized domains. Custom domains aren't auto-added when you set up Hosting — manual step in the Console:
+
+> Firebase Console → **Authentication** → **Settings** → **Authorized domains** → add `momento.community` (and `www.momento.community` if used).
+
+Without this, Google/Apple sign-in popups fail with `auth/unauthorized-domain`. Email/password keeps working.
+
 ## Storage layout + sample data
 
 Two canonical paths for Firebase Storage:
