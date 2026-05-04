@@ -5,6 +5,22 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "is_active",          "order": "ASCENDING" },
+        { "fieldPath": "end_datetime",       "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "momentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "liked_by",           "arrayConfig": "CONTAINS" },
+        { "fieldPath": "is_active",          "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "momentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_active",          "order": "ASCENDING" },
         { "fieldPath": "start_datetime",     "order": "ASCENDING" },
         { "fieldPath": "location_geohash",   "order": "ASCENDING" }
       ]
