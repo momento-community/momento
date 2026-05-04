@@ -28,6 +28,7 @@
     "rules": "storage.rules"
   },
   "hosting": {
+    "site": "momento-b23c0",
     "public": "build/web",
     "ignore": [
       "firebase.json",
