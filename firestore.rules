@@ -18,7 +18,19 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    // Returns true when the user has remaining freemium quota or is premium.
+    // Treats missing role as "user" so existing docs keep working.
+    function roleOf() {
+      return userDoc().data.get('role', 'user');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && roleOf() == 'admin';
+    }
+
+    function isOrganisor() {
+      return isSignedIn() && roleOf() in ['organisor', 'admin'];
+    }
+
     function hasFreemiumQuota() {
       return userDoc().data.is_premium == true
           || userDoc().data.freemium_used < 5;
@@ -30,30 +42,48 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isSignedIn();
 
-      // Initial user-doc creation by the user themselves.
+      // Self-create: user role only, clean defaults, no self-grant of premium.
       allow create: if isOwner(uid)
         && request.resource.data.email is string
         && request.resource.data.freemium_used == 0
         && request.resource.data.is_premium == false
+        && request.resource.data.role == 'user'
         && request.resource.data.created_at == request.time;
 
-      // Profile self-edits — cannot self-grant premium or reset freemium.
+      // Self-update — strict invariants on premium / freemium / role.
+      // Allowed role transitions: same role, or one-way `user → organisor`.
+      // Anything else (becoming admin, demoting an organisor) requires admin.
       allow update: if isOwner(uid)
         && request.resource.data.is_premium == resource.data.is_premium
         && request.resource.data.freemium_used >= resource.data.freemium_used
-        // freemium_used can only grow by 1 per write (matches createMomento txn)
-        && request.resource.data.freemium_used <= resource.data.freemium_used + 1;
+        && request.resource.data.freemium_used <= resource.data.freemium_used + 1
+        && (
+          request.resource.data.get('role', 'user') == resource.data.get('role', 'user')
+          || (
+            resource.data.get('role', 'user') == 'user'
+            && request.resource.data.role == 'organisor'
+          )
+        );
+
+      // Admins can update any user doc, including role transitions.
+      allow update: if isAdmin();
+
+      // Admins can also create user docs out-of-band (e.g. seeding).
+      allow create: if isAdmin();
     }
 
     // ────────────────────────────────────────────────────────────────────
     // momentos/{id}
     // ────────────────────────────────────────────────────────────────────
     match /momentos/{id} {
-      allow read: if true;  // public discovery feed
+      allow read: if true;
 
-      // Create: must be the organizer, must have quota, must include all
-      // required fields, end must be after start, max 5-day duration.
-      allow create: if isOwner(request.resource.data.organizer_id)
+      // Organisor self-creates their own momento. Admins can create on
+      // anyone's behalf (rare; useful for seeding or moderation).
+      allow create: if (isOrganisor() || isAdmin())
+        && (
+          isOwner(request.resource.data.organizer_id) || isAdmin()
+        )
         && hasFreemiumQuota()
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
@@ -67,20 +97,22 @@ service cloud.firestore {
         && request.resource.data.duration_days <= 5
         && request.resource.data.location_geopoint is latlng
         && request.resource.data.location_geohash is string
-        && request.resource.data.organizer_id == request.auth.uid
         && request.resource.data.like_count == 0
         && request.resource.data.view_count == 0
         && request.resource.data.is_active == true
         && request.resource.data.created_at == request.time;
 
-      // Update: only the organizer, and they cannot change ownership /
-      // counters / created_at. liked_by toggles are handled by `like` action.
+      // Organisor edits their own momento; mutating ownership / created_at
+      // is forbidden so re-attribution can't happen via update.
       allow update: if isOwner(resource.data.organizer_id)
         && request.resource.data.organizer_id == resource.data.organizer_id
         && request.resource.data.created_at == resource.data.created_at;
 
-      // Delete: only the organizer.
-      allow delete: if isOwner(resource.data.organizer_id);
+      // Admins can edit anything, including changing organizer_id.
+      allow update: if isAdmin();
+
+      // Delete by the organizer or by an admin.
+      allow delete: if isOwner(resource.data.organizer_id) || isAdmin();
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -91,15 +123,14 @@ service cloud.firestore {
       allow create: if isOwner(request.resource.data.follower_id)
         && request.resource.data.following_id is string
         && request.resource.data.created_at == request.time;
-      allow delete: if isOwner(resource.data.follower_id);
+      allow delete: if isOwner(resource.data.follower_id) || isAdmin();
     }
 
     // ────────────────────────────────────────────────────────────────────
-    // transactions/{id} — v2 (Stripe). Created by Functions in v2; until then
-    // no client writes.
+    // transactions/{id} — v2 (Stripe). Admins can read for support.
     // ────────────────────────────────────────────────────────────────────
     match /transactions/{id} {
-      allow read: if isSignedIn() && isOwner(resource.data.user_id);
+      allow read: if isSignedIn() && (isOwner(resource.data.user_id) || isAdmin());
       allow write: if false;
     }
   }

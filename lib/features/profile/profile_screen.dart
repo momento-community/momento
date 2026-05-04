@@ -114,6 +114,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   AppSpacing.lg,
                   AppSpacing.lg,
                 ),
+                child: _RoleCard(),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  0,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                ),
                 child: _FreemiumCard(used: freemiumUsed, progress: progress),
               ),
             ),
@@ -369,6 +380,171 @@ class _DevSeedButtonState extends ConsumerState<_DevSeedButton> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+}
+
+class _RoleCard extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_RoleCard> createState() => _RoleCardState();
+}
+
+class _RoleCardState extends ConsumerState<_RoleCard> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final role = ref.watch(userRoleProvider);
+
+    if (role == 'admin') {
+      return _RoleBanner(
+        accent: AppColors.primary,
+        icon: Icons.shield_outlined,
+        title: 'Admin',
+        subtitle: 'You have full read/write access. Be deliberate.',
+        action: MomentoButton(
+          label: 'Open admin panel',
+          icon: Icons.dashboard_outlined,
+          size: MomentoButtonSize.small,
+          // /admin lands in Phase R3; for now this is a stub.
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content: Text('Admin panel arrives in Phase R3')),
+            );
+          },
+        ),
+      );
+    }
+
+    if (role == 'organisor') {
+      return _RoleBanner(
+        accent: AppColors.primary,
+        icon: Icons.local_florist_outlined,
+        title: "You're an organisor",
+        subtitle: 'Create Momentos and see analytics on each one.',
+        action: TextButton(
+          onPressed: _busy ? null : _stopHosting,
+          child: Text(
+            'Stop hosting',
+            style: AppText.labelSmall.copyWith(
+              color: AppColors.secondaryText,
+              decoration: TextDecoration.underline,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Default: role == 'user'
+    return _RoleBanner(
+      accent: AppColors.primary,
+      icon: Icons.add_rounded,
+      title: 'Want to host?',
+      subtitle:
+          "Become an organisor and start hosting Momentos. It's free.",
+      action: MomentoButton(
+        label: _busy ? 'Setting up…' : 'Become an organisor',
+        variant: MomentoButtonVariant.primary,
+        size: MomentoButtonSize.small,
+        onPressed: _busy ? null : _upgrade,
+      ),
+    );
+  }
+
+  Future<void> _upgrade() async {
+    final user = ref.read(authStateChangesProvider).value;
+    if (user == null) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(userRepositoryProvider).upgradeToOrganisor(user.uid);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upgrade failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _stopHosting() async {
+    final user = ref.read(authStateChangesProvider).value;
+    if (user == null) return;
+    setState(() => _busy = true);
+    try {
+      await ref
+          .read(userRepositoryProvider)
+          .updateProfile(user.uid, {'role': 'user'});
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Demote failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+}
+
+class _RoleBanner extends StatelessWidget {
+  const _RoleBanner({
+    required this.accent,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.action,
+  });
+
+  final Color accent;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.10),
+              shape: BoxShape.circle,
+              border: Border.all(color: accent, width: 1),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, color: accent, size: 22),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: AppText.titleSmall
+                        .copyWith(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    style: AppText.bodySmall
+                        .copyWith(color: AppColors.secondaryText)),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          action,
+        ],
+      ),
+    );
   }
 }
 

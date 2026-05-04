@@ -170,6 +170,21 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     final used = ref.watch(freemiumUsedProvider);
     final progress =
         (used / Env.freemiumLimit).clamp(0.0, 1.0).toDouble();
+    final isOrganisor = ref.watch(isOrganisorProvider);
+
+    if (!isOrganisor) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _TopBar(onClose: () => context.go('/discover')),
+              const Expanded(child: _BecomeOrganisorPanel()),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -332,6 +347,91 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
         );
       },
     );
+  }
+}
+
+class _BecomeOrganisorPanel extends ConsumerStatefulWidget {
+  const _BecomeOrganisorPanel();
+
+  @override
+  ConsumerState<_BecomeOrganisorPanel> createState() =>
+      _BecomeOrganisorPanelState();
+}
+
+class _BecomeOrganisorPanelState
+    extends ConsumerState<_BecomeOrganisorPanel> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary, width: 1),
+              ),
+              alignment: Alignment.center,
+              child: Icon(Icons.local_florist_outlined,
+                  size: 44, color: AppColors.primary),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text('Want to host?',
+                style: AppText.headlineSmall, textAlign: TextAlign.center),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'To create Momentos you need an organisor account. '
+              "It's free, it's instant, and you stay in full control.",
+              textAlign: TextAlign.center,
+              style: AppText.bodyMedium
+                  .copyWith(color: AppColors.secondaryText, height: 1.5),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            MomentoButton(
+              label: _busy ? 'Setting you up…' : 'Become an organisor',
+              icon: Icons.add_rounded,
+              variant: MomentoButtonVariant.primary,
+              size: MomentoButtonSize.large,
+              fullWidth: true,
+              onPressed: _busy ? null : _upgrade,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'You can stop hosting at any time from your Profile.',
+              textAlign: TextAlign.center,
+              style: AppText.labelSmall
+                  .copyWith(color: AppColors.secondaryText),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _upgrade() async {
+    final user = ref.read(authStateChangesProvider).value;
+    if (user == null) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(userRepositoryProvider).upgradeToOrganisor(user.uid);
+      // The provider stream picks up the role change and re-renders the
+      // CreateScreen into the form automatically.
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upgrade failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 }
 

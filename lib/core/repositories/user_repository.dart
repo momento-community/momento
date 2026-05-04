@@ -24,12 +24,19 @@ class UserRepository {
       'bio': '',
       'location_city': '',
       'instagram_handle': null,
+      'role': 'user',
       'momentos_organized_count': 0,
       'freemium_used': 0,
       'is_premium': false,
       'stripe_customer_id': null,
       'created_at': FieldValue.serverTimestamp(),
     });
+  }
+
+  /// Self-service `user → organisor` upgrade. The Firestore rule allows
+  /// exactly this transition; any other role change requires an admin.
+  Future<void> upgradeToOrganisor(String uid) {
+    return _users.doc(uid).update({'role': 'organisor'});
   }
 
   Stream<DocumentSnapshot<Map<String, dynamic>>> watchUserDoc(String uid) {

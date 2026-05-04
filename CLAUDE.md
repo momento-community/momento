@@ -71,6 +71,22 @@ A separate prod Firebase project will be split off before public launch.
 - **Phase 3 (done)** — Map placeholder + sage markers + compact card, Create form (image picker + freemium gate), My Moments (Organised + Liked tabs), Profile (avatar + stats + freemium card + tabs + logout), Organizer detail.
 - **Phase 4 (done)** — `firestore.rules` + `firestore.indexes.json` + `storage.rules`, repository layer (`MomentoRepository`/`UserRepository`/`StorageRepository`), Firestore-backed providers replacing mock data, real photo upload from Create, freemium gate enforced via Firestore transaction, dev seed button on Profile, GitHub Actions for hosting + rules deploy.
 
+## User roles
+
+Three roles, stored as `users/{uid}.role`. Default `user` on signup.
+
+| Role | What they can do |
+|---|---|
+| **user** | read + like + follow |
+| **organisor** | + create / edit / delete own momentos + see analytics on own |
+| **admin** | + edit / delete *any* momento + admin panel + manage roles |
+
+Self-service `user → organisor` via Profile or Create screen. Admin role is admin-only-grantable. **Bootstrap:** the first admin doesn't exist until set manually:
+
+> Firebase Console → Firestore → users/{uid} → set `role` = `"admin"`
+
+Full plan: [docs/roles-plan.md](docs/roles-plan.md). Capability matrix, transitions, phases, rule strategy.
+
 ## Architecture decisions worth remembering
 
 - **No Cloud Functions in v1.** The original spec called for a `createMomento` callable to enforce a 50m+time-overlap conflict check atomically. We dropped it because (a) the race window is vanishingly small in practice, (b) Firestore rules + a client-side transaction cover freemium / quota / ownership invariants, (c) Functions require Blaze + add cold-start latency. Re-add as a callable if duplicates ever surface.

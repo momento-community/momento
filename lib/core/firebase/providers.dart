@@ -56,3 +56,19 @@ final isPremiumProvider = Provider<bool>((ref) {
   final doc = ref.watch(currentUserDocProvider).value;
   return doc?.data()?['is_premium'] as bool? ?? false;
 });
+
+/// Current user's role: `user` | `organisor` | `admin`. Defaults to `user`
+/// while loading or if the field is missing on legacy docs.
+final userRoleProvider = Provider<String>((ref) {
+  final doc = ref.watch(currentUserDocProvider).value;
+  return (doc?.data()?['role'] as String?) ?? 'user';
+});
+
+final isAdminProvider = Provider<bool>((ref) {
+  return ref.watch(userRoleProvider) == 'admin';
+});
+
+final isOrganisorProvider = Provider<bool>((ref) {
+  final r = ref.watch(userRoleProvider);
+  return r == 'organisor' || r == 'admin';
+});
