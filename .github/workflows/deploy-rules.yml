@@ -1,5 +1,6 @@
 name: Deploy Rules & Indexes
 
+# Auth: FIREBASE_TOKEN secret (firebase login:ci output) — see CLAUDE.md.
 on:
   push:
     branches: [main]
