@@ -39,6 +39,21 @@ class UserRepository {
     return _users.doc(uid).update({'role': 'organisor'});
   }
 
+  /// Admin-only: flip a user's role. Rule check (`isAdmin()`) on the
+  /// server prevents misuse; this method just constructs the write.
+  Future<void> setRole(String uid, String role) {
+    return _users.doc(uid).update({'role': role});
+  }
+
+  /// Admin-only: stream every user doc, newest first. Cheap for v1 scale
+  /// (a few hundred users); switch to paginated queries once we cross ~1k.
+  Stream<List<DocumentSnapshot<Map<String, dynamic>>>> watchAllUsers() {
+    return _users
+        .orderBy('created_at', descending: true)
+        .snapshots()
+        .map((q) => q.docs);
+  }
+
   Stream<DocumentSnapshot<Map<String, dynamic>>> watchUserDoc(String uid) {
     return _users.doc(uid).snapshots();
   }

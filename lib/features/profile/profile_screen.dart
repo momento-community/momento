@@ -405,13 +405,7 @@ class _RoleCardState extends ConsumerState<_RoleCard> {
           label: 'Open admin panel',
           icon: Icons.dashboard_outlined,
           size: MomentoButtonSize.small,
-          // /admin lands in Phase R3; for now this is a stub.
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text('Admin panel arrives in Phase R3')),
-            );
-          },
+          onPressed: () => GoRouter.of(context).go('/admin'),
         ),
       );
     }

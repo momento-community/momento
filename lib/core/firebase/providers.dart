@@ -72,3 +72,13 @@ final isOrganisorProvider = Provider<bool>((ref) {
   final r = ref.watch(userRoleProvider);
   return r == 'organisor' || r == 'admin';
 });
+
+/// Admin-panel data streams. These hit Firestore directly (no mock
+/// fallback) since the panel is only meaningful against a live project.
+final adminAllMomentosProvider = StreamProvider((ref) {
+  return ref.watch(momentoRepositoryProvider).watchAll();
+});
+
+final adminAllUsersProvider = StreamProvider((ref) {
+  return ref.watch(userRepositoryProvider).watchAllUsers();
+});

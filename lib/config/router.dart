@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import 'env.dart';
 import '../core/firebase/providers.dart';
+import '../features/admin/admin_screen.dart';
 import '../features/auth/auth_screen.dart';
 import '../features/create/create_screen.dart';
 import '../features/discover/discover_screen.dart';
@@ -36,6 +37,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       final inOpenZone =
           loc == '/splash' || loc == '/onboarding' || loc == '/auth';
       if (unauthed && !inOpenZone) return '/auth';
+      // /admin is admin-only — non-admins land back on /discover.
+      if (loc == '/admin') {
+        final doc = ref.read(currentUserDocProvider).value;
+        final role = (doc?.data()?['role'] as String?) ?? 'user';
+        if (role != 'admin') return '/discover';
+      }
       return null;
     },
     routes: [
@@ -43,6 +50,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/onboarding', builder: (_, __) => const OnboardingScreen()),
       GoRoute(path: '/auth', builder: (_, __) => const AuthScreen()),
+      // /admin lives outside the bottom-nav shell — it's a full-screen
+      // operator surface. Redirect above gates non-admins.
+      GoRoute(path: '/admin', builder: (_, __) => const AdminScreen()),
       StatefulShellRoute.indexedStack(
         builder: (_, __, shell) => MainShell(navigationShell: shell),
         branches: [

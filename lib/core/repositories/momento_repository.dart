@@ -195,6 +195,22 @@ class MomentoRepository {
     });
   }
 
+  /// Admin-only: every momento in the project, newest first. The rules
+  /// already let public reads on this collection, so this is technically
+  /// available to anyone, but only the admin panel calls it.
+  Stream<List<Momento>> watchAll() {
+    return _col
+        .orderBy('created_at', descending: true)
+        .snapshots()
+        .map(_decodeList);
+  }
+
+  /// Admin-only: delete any momento. The rule allows delete for the
+  /// organizer or an admin.
+  Future<void> deleteMomento(String id) {
+    return _col.doc(id).delete();
+  }
+
   /// DEV ONLY: batch-writes the in-memory mock fixture so a fresh project
   /// has something to look at on Discover. Idempotent — overwrites by id.
   ///
