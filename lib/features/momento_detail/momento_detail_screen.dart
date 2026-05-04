@@ -5,7 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../config/env.dart';
 import '../../config/theme.dart';
+import '../../core/firebase/providers.dart';
 import '../../core/models/momento.dart';
 import '../../core/widgets/momento_button.dart';
 import '../../core/widgets/momento_card.dart';
@@ -27,11 +29,31 @@ class _MomentoDetailScreenState extends ConsumerState<MomentoDetailScreen> {
   bool _liked = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Bump view count on first open, but only when the viewer isn't the
+    // organizer themselves — self-views shouldn't pad the analytics.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (Env.useMockData) return;
+      final uid = ref.read(authStateChangesProvider).value?.uid;
+      if (uid != null && uid != widget.momento.organizerId) {
+        ref
+            .read(momentoRepositoryProvider)
+            .incrementViewCount(widget.momento.id);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final m = widget.momento;
     final all = ref.watch(allMomentosProvider);
     final related =
         all.where((x) => x.id != m.id && x.isActive).take(6).toList();
+    final uid = ref.watch(authStateChangesProvider).value?.uid;
+    final isAdmin = ref.watch(isAdminProvider);
+    final showAnalytics = isAdmin || (uid != null && uid == m.organizerId);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -101,6 +123,13 @@ class _MomentoDetailScreenState extends ConsumerState<MomentoDetailScreen> {
                           liked: _liked,
                           onLike: () => setState(() => _liked = !_liked),
                         ),
+                        if (showAnalytics) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          const Divider(
+                              color: AppColors.divider, height: 1),
+                          const SizedBox(height: AppSpacing.md),
+                          _AnalyticsCard(momento: m, isAdminView: isAdmin),
+                        ],
                         const SizedBox(height: AppSpacing.md),
                         const Divider(
                             color: AppColors.divider, height: 1),
@@ -450,6 +479,123 @@ class _Action extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Analytics card visible only to the organizer of this momento and to
+/// admins. v1 surfaces existing counters; reservations + follower delta
+/// arrive when paid Momentos and a richer follow-stream land.
+class _AnalyticsCard extends StatelessWidget {
+  const _AnalyticsCard({required this.momento, required this.isAdminView});
+  final Momento momento;
+  final bool isAdminView;
+
+  @override
+  Widget build(BuildContext context) {
+    final views = momento.viewCount;
+    final likes = momento.likeCount;
+    final likeRate = views == 0 ? null : likes / views;
+    final timing = _timingLabel(momento);
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isAdminView
+                    ? Icons.shield_outlined
+                    : Icons.bar_chart_rounded,
+                color: AppColors.primary,
+                size: 18,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                isAdminView ? 'ADMIN VIEW' : 'YOUR ANALYTICS',
+                style: AppText.labelSmall.copyWith(
+                  color: AppColors.primary,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              _Stat(label: 'Views', value: _compact(views)),
+              _StatDivider(),
+              _Stat(label: 'Likes', value: _compact(likes)),
+              _StatDivider(),
+              _Stat(
+                label: 'Like rate',
+                value: likeRate == null
+                    ? '—'
+                    : '${(likeRate * 100).toStringAsFixed(0)}%',
+              ),
+              _StatDivider(),
+              _Stat(label: 'Timing', value: timing),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _compact(int n) {
+    if (n >= 10000) return '${(n / 1000).toStringAsFixed(1)}k';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
+    return '$n';
+  }
+
+  static String _timingLabel(Momento m) {
+    final now = DateTime.now();
+    if (now.isBefore(m.startDateTime)) {
+      final delta = m.startDateTime.difference(now);
+      if (delta.inDays >= 1) return 'in ${delta.inDays}d';
+      if (delta.inHours >= 1) return 'in ${delta.inHours}h';
+      return 'in ${delta.inMinutes}m';
+    }
+    if (now.isBefore(m.endDateTime)) return 'Live';
+    final delta = now.difference(m.endDateTime);
+    if (delta.inDays >= 1) return '${delta.inDays}d ago';
+    if (delta.inHours >= 1) return '${delta.inHours}h ago';
+    return 'just ended';
+  }
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(value,
+              style: AppText.titleMedium
+                  .copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 2),
+          Text(label,
+              style: AppText.labelSmall
+                  .copyWith(color: AppColors.secondaryText)),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) =>
+      Container(width: 1, height: 32, color: AppColors.divider);
 }
 
 class _StickyReserveBar extends StatelessWidget {
