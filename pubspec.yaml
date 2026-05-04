@@ -18,9 +18,8 @@ dependencies:
   firebase_storage: any
   cloud_functions: any
 
-  # Auth providers
+  # Auth providers — Apple deferred to v2 alongside iOS launch.
   google_sign_in: ^6.2.2
-  sign_in_with_apple: any
 
   # State + navigation
   flutter_riverpod: any

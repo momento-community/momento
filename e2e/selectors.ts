@@ -23,7 +23,6 @@ export const onboarding = {
 export const auth = {
   heading: "Get started",
   google: "Continue with Google",
-  apple: "Continue with Apple",
   email: "Continue with email",
   signInTab: "Sign in",
   signUpTab: "Sign up",

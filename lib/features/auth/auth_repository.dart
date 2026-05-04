@@ -1,9 +1,6 @@
-import 'dart:io' show Platform;
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class AuthRepository {
   AuthRepository(this._auth);
@@ -30,26 +27,6 @@ class AuthRepository {
     final cred = GoogleAuthProvider.credential(
       idToken: tokens.idToken,
       accessToken: tokens.accessToken,
-    );
-    return _auth.signInWithCredential(cred);
-  }
-
-  Future<UserCredential> signInWithApple() async {
-    if (!kIsWeb && !Platform.isIOS && !Platform.isMacOS) {
-      throw FirebaseAuthException(
-        code: 'unavailable',
-        message: 'Sign in with Apple is only available on iOS and the web',
-      );
-    }
-    final apple = await SignInWithApple.getAppleIDCredential(
-      scopes: [
-        AppleIDAuthorizationScopes.email,
-        AppleIDAuthorizationScopes.fullName,
-      ],
-    );
-    final cred = OAuthProvider('apple.com').credential(
-      idToken: apple.identityToken,
-      accessToken: apple.authorizationCode,
     );
     return _auth.signInWithCredential(cred);
   }

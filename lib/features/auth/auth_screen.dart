@@ -129,16 +129,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     MomentoButton(
-                      label: 'Continue with Apple',
-                      icon: Icons.apple,
-                      variant: MomentoButtonVariant.dark,
-                      size: MomentoButtonSize.large,
-                      fullWidth: true,
-                      onPressed:
-                          _busy ? null : () => _runAuth(repo.signInWithApple),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    MomentoButton(
                       label: 'Continue with email',
                       icon: Icons.mail_outline_rounded,
                       size: MomentoButtonSize.large,

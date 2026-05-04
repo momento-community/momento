@@ -41,7 +41,6 @@ test.describe("smoke (mock-data build)", () => {
       timeout: 8_000,
     });
     await expect(flutterText(page, S.auth.google)).toBeVisible();
-    await expect(flutterText(page, S.auth.apple)).toBeVisible();
     await expect(flutterText(page, S.auth.email)).toBeVisible();
   });
 });

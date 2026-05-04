@@ -108,14 +108,13 @@ Images fetched from picsum.photos at run time, uploaded to Storage at canonical 
 
 | Item | Status |
 |---|---|
-| Auth providers (Google, Apple, Email/Password) | ✅ |
+| Auth providers (Google + Email/Password) | ✅ Apple deferred to v2 / iOS launch |
 | Firestore in `eur3 (europe-west)` | ✅ |
 | Storage default bucket | ✅ |
 | Storage CORS applied | ✅ (re-apply via `gsutil` after edits to `storage.cors.json`) |
 | `momento.community` in Authorized domains | ☐ |
 | GitHub secret `FIREBASE_TOKEN` (`firebase login:ci`) | ✅ |
 | GitHub secret `GOOGLE_MAPS_KEY_WEB` | ☐ (when Maps lands) |
-| Apple Sign-in Service ID + Key | ☐ (later) |
 | Google Maps API keys (iOS / Android / Web) | ☐ (later — pass via `--dart-define`) |
 | First admin role set on a user doc | ✅ |
 
