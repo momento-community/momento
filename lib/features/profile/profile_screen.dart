@@ -140,10 +140,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.lg),
                 child: SectionTabs(
-                  // "Hosted" = Momentos this user created (organisor view).
-                  // "Liked"  = Momentos they tapped the heart on. Two
-                  // disjoint sets — labels make the contrast obvious.
-                  labels: const ['Hosted', 'Liked'],
+                  // "Created Momentos" = Momentos this user is the organizer
+                  // of. "Liked" = Momentos they tapped the heart on. Two
+                  // disjoint sets — labels are explicit so the contrast is
+                  // unmistakable.
+                  labels: const ['Created Momentos', 'Liked'],
                   activeIndex: _tab,
                   onSelect: (i) => setState(() => _tab = i),
                 ),
@@ -289,7 +290,7 @@ class _StatsRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _StatItem(value: '$momentos', label: 'Hosted'),
+        _StatItem(value: '$momentos', label: 'Created'),
         const _VDivider(),
         _StatItem(value: '$liked', label: 'Liked'),
         const _VDivider(),
