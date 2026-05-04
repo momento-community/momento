@@ -3,3 +3,6 @@ playwright-report/
 test-results/
 playwright/.cache/
 *.tsbuildinfo
+
+# Lock file intentionally not tracked — see .github/workflows/e2e.yml comment.
+package-lock.json

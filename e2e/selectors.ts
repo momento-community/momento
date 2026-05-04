@@ -40,6 +40,21 @@ export const profile = {
   editProfile: "Edit Profile",
   freemiumHeading: "Free Momentos",
   seedDevButton: "Seed dev Momentos",
+  // Tab + stat labels — the rename from "My Momentos" / "Hosted" → "Created"
+  // is intentional UX copy, so we lock it in via tests.
+  createdTab: "Created Momentos",
+  likedTab: "Liked",
+  createdStat: "Created",
+  followersStat: "Followers",
+};
+
+export const social = {
+  // LikeButton wraps a Semantics(label: …) — these are the two states.
+  likeIdle: "Like Momento",
+  likeActive: "Unlike Momento",
+  // FollowButton renders MomentoButton with these labels.
+  followIdle: "Follow",
+  followActive: "Following",
 };
 
 export const create = {

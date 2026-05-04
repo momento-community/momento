@@ -52,19 +52,28 @@ class _LikeButtonState extends ConsumerState<LikeButton> {
         ? const EdgeInsets.all(6)
         : const EdgeInsets.all(8);
 
-    return Material(
-      color: AppColors.background.withValues(alpha: 0.92),
-      shape: const CircleBorder(),
-      elevation: 1,
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: me == null ? null : () => _toggle(me.uid, liked),
-        child: Padding(
-          padding: pad,
-          child: Icon(
-            liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-            size: iconSize,
-            color: liked ? AppColors.error : AppColors.primaryText,
+    // Tooltip is the simplest path to a stable accessible-name on an
+    // icon-only widget — it emits a Semantics node whose label Flutter
+    // surfaces as `aria-label` in the web build, and on hover/long-press
+    // displays the same string visually. Bonus: the test harness can
+    // query it via `[aria-label="Like Momento"]`.
+    final label = liked ? 'Unlike Momento' : 'Like Momento';
+    return Tooltip(
+      message: label,
+      child: Material(
+        color: AppColors.background.withValues(alpha: 0.92),
+        shape: const CircleBorder(),
+        elevation: 1,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: me == null ? null : () => _toggle(me.uid, liked),
+          child: Padding(
+            padding: pad,
+            child: Icon(
+              liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              size: iconSize,
+              color: liked ? AppColors.error : AppColors.primaryText,
+            ),
           ),
         ),
       ),

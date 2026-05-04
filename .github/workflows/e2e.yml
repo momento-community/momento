@@ -55,9 +55,10 @@ jobs:
           npx -y http-server build/web -p 8080 -s &
           npx -y wait-on http://localhost:8080 -t 30000
 
-      # Smoke + Discover + Filter + Map run in CI against the mock-data build
-      # (no Firebase calls). Auth / Create / Account flows need a Firebase
-      # emulator — wire that in P3 of e2e/PLAN.md.
+      # Smoke + Discover + Filter + Map + Roles + Social + Profile run in CI
+      # against the mock-data build (no Firebase calls). Auth / Create flows
+      # and any test that needs a real signed-in user (full Like/Follow
+      # round-trip) live behind the Firebase emulator — see e2e/PLAN.md P3.
       - name: Run Playwright (mock-mode suites)
         working-directory: e2e
         env:
@@ -65,7 +66,7 @@ jobs:
         run: |
           npm run test -- \
             smoke.spec.ts discover.spec.ts filter.spec.ts map.spec.ts \
-            roles.spec.ts \
+            roles.spec.ts social.spec.ts profile.spec.ts \
             --reporter=list,html
 
       - name: Upload Playwright report

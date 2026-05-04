@@ -43,4 +43,28 @@ test.describe("smoke (mock-data build)", () => {
     await expect(flutterText(page, S.auth.google)).toBeVisible();
     await expect(flutterText(page, S.auth.email)).toBeVisible();
   });
+
+  test("brand assets (favicon SVG + PNG, manifest) serve correctly", async ({
+    request,
+  }) => {
+    // SVG favicon — modern browsers prefer this. Must be the wordmark.
+    const svg = await request.get("/favicon.svg");
+    expect(svg.status()).toBe(200);
+    expect(svg.headers()["content-type"]).toMatch(/image\/svg/);
+    expect(await svg.text()).toContain("MOMENTŌ");
+
+    // PNG fallback — small 32×32, exists, not the Flutter blue placeholder.
+    const png = await request.get("/favicon.png");
+    expect(png.status()).toBe(200);
+    expect(png.headers()["content-type"]).toMatch(/image\/png/);
+
+    // Manifest — name is rebranded, no Flutter `#0175C2` blue lingering.
+    const manifestRes = await request.get("/manifest.json");
+    expect(manifestRes.status()).toBe(200);
+    const manifest = await manifestRes.json();
+    expect(manifest.name).toBe("Momentō");
+    expect(manifest.short_name).toBe("Momentō");
+    expect(manifest.background_color).toBe("#FFFFFF");
+    expect(manifest.theme_color).toBe("#FFFFFF");
+  });
 });
