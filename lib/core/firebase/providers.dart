@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/auth/auth_repository.dart';
 import '../repositories/audit_log_repository.dart';
+import '../repositories/follow_repository.dart';
 import '../repositories/momento_repository.dart';
 import '../repositories/storage_repository.dart';
 import '../repositories/user_repository.dart';
@@ -37,6 +38,35 @@ final momentoRepositoryProvider = Provider<MomentoRepository>((ref) {
 final auditLogRepositoryProvider = Provider<AuditLogRepository>((ref) {
   return AuditLogRepository(ref.watch(firestoreProvider));
 });
+
+final followRepositoryProvider = Provider<FollowRepository>((ref) {
+  return FollowRepository(ref.watch(firestoreProvider));
+});
+
+/// Live "is the signed-in user following [followingId]?" — null when signed
+/// out, else true/false.
+final isFollowingProvider =
+    StreamProvider.family<bool, String>((ref, followingId) {
+  final me = ref.watch(authStateChangesProvider).value;
+  if (me == null) return Stream.value(false);
+  return ref.watch(followRepositoryProvider).watchIsFollowing(
+        followerId: me.uid,
+        followingId: followingId,
+      );
+});
+
+/// Live follower count for any user (organisor surface). Re-runs on every
+/// follow/unfollow under the listener, since the underlying query stream
+/// will emit. We use a stream that reissues count() on every change.
+final followerCountProvider =
+    StreamProvider.family<int, String>((ref, followingId) {
+  final col = ref.watch(firestoreProvider).collection('follows');
+  return col
+      .where('following_id', isEqualTo: followingId)
+      .snapshots()
+      .map((q) => q.size);
+});
+
 
 final authStateChangesProvider = StreamProvider<User?>((ref) {
   return ref.watch(authRepositoryProvider).authStateChanges();

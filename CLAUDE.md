@@ -35,7 +35,7 @@ Flutter 3.38+ · Riverpod 3 (`Notifier` API) · `go_router` · Firebase Auth/Fir
 
 - `lib/config/{env,theme,router}.dart` — config, design tokens, go_router with role + auth redirects
 - `lib/core/firebase/providers.dart` — Riverpod providers + role/freemium derivations
-- `lib/core/repositories/` — `MomentoRepository`, `UserRepository`, `StorageRepository`, `AuditLogRepository`. All Firestore writes go through here.
+- `lib/core/repositories/` — `MomentoRepository`, `UserRepository`, `StorageRepository`, `AuditLogRepository`, `FollowRepository`. All Firestore writes go through here.
 - `lib/core/widgets/{momento_logo,momento_button,slide_up_route}.dart`
 - `lib/core/seeds/demo_seed.dart` — admin-gated demo data flow
 - `lib/shared/filter_state.dart` — shared filter state for Discover + Map
@@ -63,6 +63,8 @@ Default `user` on signup. Self-service `user → organisor` from Profile or Crea
 
 - **No Cloud Functions in v1.** Race window for create-conflicts is tiny; rules + transactions cover ownership/freemium. Re-add as a callable if duplicates surface.
 - `autoExpire` replaced by `where('end_datetime', '>', now())`. `onMomentoLikeChange` replaced by transaction-bumped `like_count` inside `toggleLike`.
+- **Likes** — heart on every card (top-right overlay) + detail screen. State is `momento.likedBy.contains(uid)`; toggle is a transaction on the momento doc (`liked_by` arrayUnion/Remove + `like_count` increment). Optimistic UI in `LikeButton` for instant feedback.
+- **Follows** — `/follows/{follower}_{following}` doc, deterministic id so create/delete are idempotent. Follower count via Firestore `count()` aggregate stream. `FollowButton` hides when viewing yourself. Profile shows real `followers` count for the signed-in user; organizer detail shows it for the organizer.
 - **`USE_MOCK_DATA=true`** dart-define bypasses Firestore for offline UI dev + e2e CI. Skips auth gate too.
 - Flutter web semantics enabled in `main.dart` so Playwright can query `<flt-semantics>` aria-labels.
 
@@ -90,9 +92,18 @@ If gsutil errors with "Reauthentication required" → `gcloud auth login` first.
 ## Google Maps keys
 
 Three keys, one per platform. Restrict each one in GCP Console:
-- **Web** → HTTP referrers: `momento.community/*`, `*.momento.community/*`, `momento-b23c0.web.app/*`, `localhost:*`
+- **Web** → HTTP referrers — must use **wildcard form**, no scheme:
+  `momento.community/*`, `*.momento.community/*`, `momento-b23c0.web.app/*`,
+  `localhost:*`. If you see `RefererNotAllowedMapError`, the loaded URL
+  (e.g. `https://momento.community/`) doesn't match any pattern — common
+  cause is omitting the trailing `/*`.
 - **Android** → app restriction `community.momento.app` + SHA-1 (debug + release)
 - **iOS** → bundle id `community.momento.app`
+
+**Marker deprecation warning**: `google.maps.Marker is deprecated. Please use
+google.maps.marker.AdvancedMarkerElement` is emitted by the
+`google_maps_flutter_web` plugin itself — it still wraps the legacy class.
+Non-fatal; markers render fine. We'll migrate when the plugin does.
 
 Key wiring per platform:
 - **Web** (`web/index.html`) — script tag with `__GOOGLE_MAPS_KEY_WEB__` token. CI (`deploy-hosting.yml`) sed-replaces it from the `GOOGLE_MAPS_KEY_WEB` repo secret. For local web dev, replace the token by hand in `web/index.html` or set `android/local.properties`-style override (see below).
@@ -124,7 +135,7 @@ Images fetched from picsum.photos at run time, uploaded to Storage at canonical 
 | Firestore in `eur3 (europe-west)` | ✅ |
 | Storage default bucket | ✅ |
 | Storage CORS applied | ✅ (re-apply via `gsutil` after edits to `storage.cors.json`) |
-| `momento.community` in Authorized domains | ☐ |
+| `momento.community` in Authorized domains (Auth → Settings) | ☐ — required, Firebase does **not** auto-add custom hosting domains |
 | GitHub secret `FIREBASE_TOKEN` (`firebase login:ci`) | ✅ |
 | GitHub secret `GOOGLE_MAPS_KEY_WEB` | ☐ (paste web key — CI injects into index.html) |
 | GCP: enable **Maps JavaScript API**, **Maps SDK for Android**, **Maps SDK for iOS** | ☐ |

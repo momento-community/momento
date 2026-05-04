@@ -9,6 +9,7 @@ import '../../config/env.dart';
 import '../../config/theme.dart';
 import '../../core/firebase/providers.dart';
 import '../../core/models/momento.dart';
+import '../../core/widgets/follow_button.dart';
 import '../../core/widgets/momento_button.dart';
 import '../../core/widgets/momento_card.dart';
 import '../../core/widgets/slide_up_route.dart';
@@ -26,7 +27,6 @@ class MomentoDetailScreen extends ConsumerStatefulWidget {
 
 class _MomentoDetailScreenState extends ConsumerState<MomentoDetailScreen> {
   bool _expanded = false;
-  bool _liked = false;
 
   @override
   void initState() {
@@ -118,11 +118,7 @@ class _MomentoDetailScreenState extends ConsumerState<MomentoDetailScreen> {
                         const Divider(
                             color: AppColors.divider, height: 1),
                         const SizedBox(height: AppSpacing.md),
-                        _ActionRow(
-                          momento: m,
-                          liked: _liked,
-                          onLike: () => setState(() => _liked = !_liked),
-                        ),
+                        _ActionRow(momento: m),
                         if (showAnalytics) ...[
                           const SizedBox(height: AppSpacing.md),
                           const Divider(
@@ -332,11 +328,7 @@ class _OrganizerCard extends StatelessWidget {
               ],
             ),
           ),
-          MomentoButton(
-            label: 'Follow',
-            size: MomentoButtonSize.small,
-            onPressed: () {},
-          ),
+          FollowButton(organizerId: momento.organizerId),
         ],
       ),
       ),
@@ -385,27 +377,27 @@ class _Description extends StatelessWidget {
   }
 }
 
-class _ActionRow extends StatelessWidget {
-  const _ActionRow({
-    required this.momento,
-    required this.liked,
-    required this.onLike,
-  });
+class _ActionRow extends ConsumerWidget {
+  const _ActionRow({required this.momento});
 
   final Momento momento;
-  final bool liked;
-  final VoidCallback onLike;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final me = ref.watch(authStateChangesProvider).value;
+    final liked = me != null && momento.likedBy.contains(me.uid);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
         _Action(
           icon: liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-          label: 'Like',
-          activeColor: liked ? AppColors.primary : null,
-          onTap: onLike,
+          label: '${momento.likeCount}',
+          activeColor: liked ? AppColors.error : null,
+          onTap: me == null
+              ? null
+              : () => ref
+                  .read(momentoRepositoryProvider)
+                  .toggleLike(momento.id, me.uid),
         ),
         _Action(
           icon: Icons.visibility_outlined,

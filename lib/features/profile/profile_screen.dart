@@ -35,6 +35,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final organised = ref.watch(myOrganisedMomentosProvider);
     final liked = ref.watch(myLikedMomentosProvider);
     final freemiumUsed = ref.watch(freemiumUsedProvider);
+    // Real follower count (organisors get followed; for non-organisors this
+    // is simply 0 — still cheap, one count() read).
+    final followers = user == null
+        ? 0
+        : ref.watch(followerCountProvider(user.uid)).value ?? 0;
     final progress =
         (freemiumUsed / Env.freemiumLimit).clamp(0.0, 1.0).toDouble();
 
@@ -96,7 +101,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _StatsRow(
                       momentos: organised.length,
                       liked: liked.length,
-                      followers: 1244,
+                      followers: followers,
                     ),
                     const SizedBox(height: AppSpacing.md),
                     MomentoButton(
@@ -135,7 +140,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.lg),
                 child: SectionTabs(
-                  labels: const ['My Momentos', 'Liked'],
+                  // "Hosted" = Momentos this user created (organisor view).
+                  // "Liked"  = Momentos they tapped the heart on. Two
+                  // disjoint sets — labels make the contrast obvious.
+                  labels: const ['Hosted', 'Liked'],
                   activeIndex: _tab,
                   onSelect: (i) => setState(() => _tab = i),
                 ),
@@ -281,7 +289,7 @@ class _StatsRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _StatItem(value: '$momentos', label: 'Momentos'),
+        _StatItem(value: '$momentos', label: 'Hosted'),
         const _VDivider(),
         _StatItem(value: '$liked', label: 'Liked'),
         const _VDivider(),

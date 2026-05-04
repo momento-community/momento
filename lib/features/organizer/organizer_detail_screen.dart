@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import '../../config/theme.dart';
+import '../../core/firebase/providers.dart';
 import '../../core/models/momento.dart';
+import '../../core/widgets/follow_button.dart';
 import '../../core/widgets/momento_button.dart';
 import '../../core/widgets/momento_card.dart';
 import '../../core/widgets/slide_up_route.dart';
@@ -43,6 +45,7 @@ class OrganizerDetailScreen extends ConsumerWidget {
           child: Column(
             children: [
               _Header(
+                organizerId: organizerId,
                 name: name,
                 avatarUrl: avatar,
                 hostedCount: hosted.length,
@@ -86,21 +89,25 @@ class OrganizerDetailScreen extends ConsumerWidget {
   }
 }
 
-class _Header extends StatelessWidget {
+class _Header extends ConsumerWidget {
   const _Header({
+    required this.organizerId,
     required this.name,
     required this.avatarUrl,
     required this.hostedCount,
     required this.onClose,
   });
 
+  final String organizerId;
   final String name;
   final String avatarUrl;
   final int hostedCount;
   final VoidCallback onClose;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final followers =
+        ref.watch(followerCountProvider(organizerId)).value ?? 0;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.md,
@@ -148,7 +155,8 @@ class _Header extends StatelessWidget {
           Text(name, style: AppText.headlineSmall),
           const SizedBox(height: 4),
           Text(
-            '$hostedCount active Momento${hostedCount == 1 ? '' : 's'}',
+            '$hostedCount active Momento${hostedCount == 1 ? '' : 's'} '
+            '· $followers follower${followers == 1 ? '' : 's'}',
             style: AppText.labelSmall
                 .copyWith(color: AppColors.secondaryText),
           ),
@@ -156,12 +164,7 @@ class _Header extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              MomentoButton(
-                label: 'Follow',
-                variant: MomentoButtonVariant.primary,
-                size: MomentoButtonSize.small,
-                onPressed: () {},
-              ),
+              FollowButton(organizerId: organizerId),
               const SizedBox(width: AppSpacing.sm),
               MomentoButton(
                 label: 'Message',

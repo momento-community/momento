@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../config/theme.dart';
 import '../models/momento.dart';
+import 'like_button.dart';
 
 /// `@momento_card` from the design export — Pinterest-style card with
 /// full-bleed top image, surface-coloured text section.
@@ -45,15 +46,30 @@ class MomentoCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              imageHeight != null
-                  ? SizedBox(
-                      height: imageHeight,
-                      child: _CardImage(url: momento.heroImage),
-                    )
-                  : AspectRatio(
-                      aspectRatio: 4 / 5,
-                      child: _CardImage(url: momento.heroImage),
+              Stack(
+                children: [
+                  imageHeight != null
+                      ? SizedBox(
+                          height: imageHeight,
+                          child: _CardImage(url: momento.heroImage),
+                        )
+                      : AspectRatio(
+                          aspectRatio: 4 / 5,
+                          child: _CardImage(url: momento.heroImage),
+                        ),
+                  // Heart overlay — top right, sits above the image. Tapping
+                  // toggles the like via Firestore transaction.
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: LikeButton(
+                      momentoId: momento.id,
+                      likedBy: momento.likedBy,
+                      size: LikeButtonSize.compact,
                     ),
+                  ),
+                ],
+              ),
               Container(
                 color: AppColors.surface,
                 padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
