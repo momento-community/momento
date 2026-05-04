@@ -4,6 +4,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/auth/auth_repository.dart';
+import '../repositories/audit_log_repository.dart';
 import '../repositories/momento_repository.dart';
 import '../repositories/storage_repository.dart';
 import '../repositories/user_repository.dart';
@@ -31,6 +32,10 @@ final momentoRepositoryProvider = Provider<MomentoRepository>((ref) {
     ref.watch(firestoreProvider),
     ref.watch(storageRepositoryProvider),
   );
+});
+
+final auditLogRepositoryProvider = Provider<AuditLogRepository>((ref) {
+  return AuditLogRepository(ref.watch(firestoreProvider));
 });
 
 final authStateChangesProvider = StreamProvider<User?>((ref) {
@@ -81,4 +86,8 @@ final adminAllMomentosProvider = StreamProvider((ref) {
 
 final adminAllUsersProvider = StreamProvider((ref) {
   return ref.watch(userRepositoryProvider).watchAllUsers();
+});
+
+final adminAuditLogProvider = StreamProvider((ref) {
+  return ref.watch(auditLogRepositoryProvider).watchRecent();
 });

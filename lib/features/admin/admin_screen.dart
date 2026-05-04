@@ -33,13 +33,24 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _Header(onClose: () => context.go('/profile')),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg),
-              child: SectionTabs(
-                labels: const ['All Momentos', 'All Users', 'Stats'],
-                activeIndex: _tab,
-                onSelect: (i) => setState(() => _tab = i),
+            SizedBox(
+              height: 44,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg),
+                children: [
+                  SectionTabs(
+                    labels: const [
+                      'Momentos',
+                      'Users',
+                      'Audit log',
+                      'Stats',
+                    ],
+                    activeIndex: _tab,
+                    onSelect: (i) => setState(() => _tab = i),
+                  ),
+                ],
               ),
             ),
             const Divider(color: AppColors.divider, height: 1),
@@ -47,6 +58,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
               child: switch (_tab) {
                 0 => const _AllMomentosTab(),
                 1 => const _AllUsersTab(),
+                2 => const _AuditLogTab(),
                 _ => const _StatsTab(),
               },
             ),
@@ -239,7 +251,23 @@ class _AdminMomentoRow extends ConsumerWidget {
     );
     if (confirmed != true) return;
     final messenger = ScaffoldMessenger.of(context);
+    final actor = ref.read(authStateChangesProvider).value;
     try {
+      // Log first so a failed delete still leaves an attempt trail. The
+      // log entry is small and the rule rejects it cheaply if the caller
+      // turns out not to be an admin.
+      if (actor != null) {
+        await ref.read(auditLogRepositoryProvider).log(
+              actor: actor,
+              action: 'momento.delete',
+              targetType: 'momento',
+              targetId: m.id,
+              before: {
+                'title': m.title,
+                'organizer_id': m.organizerId,
+              },
+            );
+      }
       await ref.read(momentoRepositoryProvider).deleteMomento(m.id);
       messenger.showSnackBar(SnackBar(content: Text('Deleted "${m.title}"')));
     } catch (e) {
@@ -329,12 +357,16 @@ class _AdminUserRow extends ConsumerWidget {
     final email = (data['email'] as String?) ?? '';
     final avatar = (data['avatar_url'] as String?) ?? '';
     final role = (data['role'] as String?) ?? 'user';
+    final banned = (data['is_banned'] as bool?) ?? false;
 
     return Container(
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(
+          color: banned ? AppColors.error : AppColors.divider,
+          width: banned ? 1.5 : 1,
+        ),
       ),
       padding: const EdgeInsets.all(AppSpacing.sm),
       child: Row(
@@ -365,10 +397,34 @@ class _AdminUserRow extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name,
-                    style: AppText.titleSmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(name,
+                          style: AppText.titleSmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    if (banned) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          borderRadius:
+                              BorderRadius.circular(AppRadii.full),
+                        ),
+                        child: Text('BANNED',
+                            style: AppText.labelSmall.copyWith(
+                              color: AppColors.onError,
+                              fontSize: 9,
+                              letterSpacing: 0.6,
+                            )),
+                      ),
+                    ],
+                  ],
+                ),
                 const SizedBox(height: 2),
                 Text(email,
                     style: AppText.labelSmall
@@ -379,9 +435,81 @@ class _AdminUserRow extends ConsumerWidget {
             ),
           ),
           _RoleDropdown(uid: doc.id, current: role, displayName: name),
+          IconButton(
+            tooltip: banned ? 'Unban' : 'Ban',
+            icon: Icon(
+              banned
+                  ? Icons.lock_open_rounded
+                  : Icons.block_rounded,
+              color: banned ? AppColors.primary : AppColors.error,
+              size: 20,
+            ),
+            onPressed: () =>
+                _confirmBan(context, ref, doc.id, name, currentlyBanned: banned),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _confirmBan(
+    BuildContext context,
+    WidgetRef ref,
+    String uid,
+    String displayName, {
+    required bool currentlyBanned,
+  }) async {
+    final next = !currentlyBanned;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.background,
+        title: Text(next ? 'Ban this user?' : 'Unban this user?'),
+        content: Text(
+          next
+              ? '$displayName will lose every write — they can\'t create or edit '
+                  'momentos, follow, or update their profile. They keep read access.'
+              : '$displayName will get write access back.',
+          style: AppText.bodyMedium,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel',
+                style: AppText.labelLarge
+                    .copyWith(color: AppColors.secondaryText)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(next ? 'Ban' : 'Unban',
+                style: AppText.labelLarge.copyWith(
+                  color: next ? AppColors.error : AppColors.primary,
+                )),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final actor = ref.read(authStateChangesProvider).value;
+    try {
+      if (actor != null) {
+        await ref.read(auditLogRepositoryProvider).log(
+              actor: actor,
+              action: next ? 'user.ban' : 'user.unban',
+              targetType: 'user',
+              targetId: uid,
+              before: {'is_banned': currentlyBanned},
+              after: {'is_banned': next},
+            );
+      }
+      await ref.read(userRepositoryProvider).setBanned(uid, next);
+      messenger.showSnackBar(SnackBar(
+          content: Text(
+              next ? 'Banned $displayName' : 'Unbanned $displayName')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Update failed: $e')));
+    }
   }
 }
 
@@ -463,7 +591,18 @@ class _RoleDropdown extends ConsumerWidget {
       if (confirmed != true) return;
     }
     final messenger = ScaffoldMessenger.of(context);
+    final actor = ref.read(authStateChangesProvider).value;
     try {
+      if (actor != null) {
+        await ref.read(auditLogRepositoryProvider).log(
+              actor: actor,
+              action: 'user.role_change',
+              targetType: 'user',
+              targetId: uid,
+              before: {'role': current},
+              after: {'role': next},
+            );
+      }
       await ref.read(userRepositoryProvider).setRole(uid, next);
       messenger.showSnackBar(
         SnackBar(content: Text('$displayName → $next')),
@@ -476,7 +615,169 @@ class _RoleDropdown extends ConsumerWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Tab 3: Stats
+// Tab 3: Audit log
+// ─────────────────────────────────────────────────────────────────────────
+class _AuditLogTab extends ConsumerWidget {
+  const _AuditLogTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncLog = ref.watch(adminAuditLogProvider);
+    return asyncLog.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation(AppColors.primary),
+        ),
+      ),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Text('Could not load audit log.\n$e',
+              textAlign: TextAlign.center,
+              style: AppText.bodySmall.copyWith(color: AppColors.error)),
+        ),
+      ),
+      data: (entries) {
+        if (entries.isEmpty) {
+          return const _EmptyState(
+            icon: Icons.history_rounded,
+            text: 'No admin actions logged yet.',
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.xl,
+          ),
+          itemCount: entries.length,
+          separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+          itemBuilder: (_, i) => _AuditEntryRow(doc: entries[i]),
+        );
+      },
+    );
+  }
+}
+
+class _AuditEntryRow extends StatelessWidget {
+  const _AuditEntryRow({required this.doc});
+  final DocumentSnapshot<Map<String, dynamic>> doc;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = doc.data() ?? const <String, dynamic>{};
+    final actor = (data['actor_email'] as String?) ?? 'unknown';
+    final action = (data['action'] as String?) ?? '?';
+    final targetType = (data['target_type'] as String?) ?? '?';
+    final targetId = (data['target_id'] as String?) ?? '?';
+    final ts = (data['created_at'] as Timestamp?)?.toDate();
+    final before = data['before'] as Map?;
+    final after = data['after'] as Map?;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(_iconFor(action),
+                  color: _colorFor(action), size: 18),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  _humanize(action),
+                  style: AppText.labelMedium.copyWith(
+                    color: AppColors.primaryText,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (ts != null)
+                Text(
+                  DateFormat('MMM d · HH:mm').format(ts),
+                  style: AppText.labelSmall
+                      .copyWith(color: AppColors.secondaryText),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'by $actor',
+            style: AppText.bodySmall
+                .copyWith(color: AppColors.secondaryText),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'target: $targetType/$targetId',
+            style: AppText.labelSmall.copyWith(
+              color: AppColors.secondaryText,
+              fontFamily: 'monospace',
+            ),
+          ),
+          if (before != null || after != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _diffSummary(before, after),
+              style: AppText.labelSmall
+                  .copyWith(color: AppColors.primaryText),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  IconData _iconFor(String action) {
+    if (action.startsWith('momento.')) return Icons.event_note_outlined;
+    if (action == 'user.ban') return Icons.block_rounded;
+    if (action == 'user.unban') return Icons.lock_open_rounded;
+    if (action == 'user.role_change') return Icons.shield_outlined;
+    return Icons.history_rounded;
+  }
+
+  Color _colorFor(String action) {
+    if (action == 'momento.delete' || action == 'user.ban') {
+      return AppColors.error;
+    }
+    return AppColors.primary;
+  }
+
+  String _humanize(String action) {
+    switch (action) {
+      case 'momento.delete':
+        return 'Deleted momento';
+      case 'user.role_change':
+        return 'Changed role';
+      case 'user.ban':
+        return 'Banned user';
+      case 'user.unban':
+        return 'Unbanned user';
+      default:
+        return action;
+    }
+  }
+
+  String _diffSummary(Map? before, Map? after) {
+    if (before == null && after == null) return '';
+    final keys = <String>{
+      ...?before?.keys.cast<String>(),
+      ...?after?.keys.cast<String>(),
+    };
+    return keys
+        .map((k) => '$k: ${before?[k] ?? '∅'} → ${after?[k] ?? '∅'}')
+        .join(' · ');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Tab 4: Stats
 // ─────────────────────────────────────────────────────────────────────────
 class _StatsTab extends ConsumerWidget {
   const _StatsTab();

@@ -79,13 +79,21 @@ Three roles, stored as `users/{uid}.role`. Default `user` on signup.
 |---|---|
 | **user** | read + like + follow |
 | **organisor** | + create / edit / delete own momentos + see analytics on own |
-| **admin** | + edit / delete *any* momento + admin panel + manage roles |
+| **admin** | + edit / delete *any* momento + admin panel + manage roles + ban/unban users |
 
-Self-service `user → organisor` via Profile or Create screen. Admin role is admin-only-grantable. **Bootstrap:** the first admin doesn't exist until set manually:
+Self-service `user → organisor` via Profile or Create screen. Admin role is admin-only-grantable. Banned users keep read access but lose every write — enforced at the Firestore rule layer via `is_banned` checks on momento create/update/delete, follow create, and user self-update.
 
-> Firebase Console → Firestore → users/{uid} → set `role` = `"admin"`
+**Bootstrap:** the first admin doesn't exist until set manually — Firebase Console → Firestore → `users/{uid}` → set `role` = `"admin"`.
 
-Full plan: [docs/roles-plan.md](docs/roles-plan.md). Capability matrix, transitions, phases, rule strategy.
+**Admin panel** lives at `/admin`, four tabs:
+- **Momentos** — list every momento (newest first), with delete (audited).
+- **Users** — list every user with inline role dropdown (audited) and a ban toggle (audited). Banned rows get a red ring + BANNED pill.
+- **Audit log** — append-only stream of admin actions: actor, action, target, before/after diff, timestamp.
+- **Stats** — counts of momentos / users (split by role) / total views / total likes.
+
+**Audit log** lives in the `audit_log` Firestore collection. Append-only, admin-read-only. Action codes today: `momento.delete`, `user.role_change`, `user.ban`, `user.unban`. Schema in `lib/core/repositories/audit_log_repository.dart`.
+
+Full plan: [docs/roles-plan.md](docs/roles-plan.md).
 
 ## Architecture decisions worth remembering
 

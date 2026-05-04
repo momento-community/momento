@@ -28,6 +28,7 @@ class UserRepository {
       'momentos_organized_count': 0,
       'freemium_used': 0,
       'is_premium': false,
+      'is_banned': false,
       'stripe_customer_id': null,
       'created_at': FieldValue.serverTimestamp(),
     });
@@ -43,6 +44,13 @@ class UserRepository {
   /// server prevents misuse; this method just constructs the write.
   Future<void> setRole(String uid, String role) {
     return _users.doc(uid).update({'role': role});
+  }
+
+  /// Admin-only: ban or unban a user. Banned users keep read access but
+  /// lose every write (rules check `is_banned` on user updates and on
+  /// momentos / follows mutations).
+  Future<void> setBanned(String uid, bool banned) {
+    return _users.doc(uid).update({'is_banned': banned});
   }
 
   /// Admin-only: stream every user doc, newest first. Cheap for v1 scale

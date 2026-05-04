@@ -18,7 +18,6 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    // Treats missing role as "user" so existing docs keep working.
     function roleOf() {
       return userDoc().data.get('role', 'user');
     }
@@ -29,6 +28,12 @@ service cloud.firestore {
 
     function isOrganisor() {
       return isSignedIn() && roleOf() in ['organisor', 'admin'];
+    }
+
+    // Banned users keep read access (so they can still see why) but lose
+    // every write. Default false for legacy docs without the field.
+    function isBanned() {
+      return isSignedIn() && userDoc().data.get('is_banned', false) == true;
     }
 
     function hasFreemiumQuota() {
@@ -42,21 +47,21 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isSignedIn();
 
-      // Self-create: user role only, clean defaults, no self-grant of premium.
       allow create: if isOwner(uid)
         && request.resource.data.email is string
         && request.resource.data.freemium_used == 0
         && request.resource.data.is_premium == false
         && request.resource.data.role == 'user'
+        && request.resource.data.get('is_banned', false) == false
         && request.resource.data.created_at == request.time;
 
-      // Self-update — strict invariants on premium / freemium / role.
-      // Allowed role transitions: same role, or one-way `user → organisor`.
-      // Anything else (becoming admin, demoting an organisor) requires admin.
+      // Self-update: banned users can't touch their own doc.
       allow update: if isOwner(uid)
+        && !isBanned()
         && request.resource.data.is_premium == resource.data.is_premium
         && request.resource.data.freemium_used >= resource.data.freemium_used
         && request.resource.data.freemium_used <= resource.data.freemium_used + 1
+        && request.resource.data.get('is_banned', false) == resource.data.get('is_banned', false)
         && (
           request.resource.data.get('role', 'user') == resource.data.get('role', 'user')
           || (
@@ -65,10 +70,10 @@ service cloud.firestore {
           )
         );
 
-      // Admins can update any user doc, including role transitions.
+      // Admin can update any user doc, including role transitions and the
+      // ban flag.
       allow update: if isAdmin();
 
-      // Admins can also create user docs out-of-band (e.g. seeding).
       allow create: if isAdmin();
     }
 
@@ -78,9 +83,8 @@ service cloud.firestore {
     match /momentos/{id} {
       allow read: if true;
 
-      // Organisor self-creates their own momento. Admins can create on
-      // anyone's behalf (rare; useful for seeding or moderation).
       allow create: if (isOrganisor() || isAdmin())
+        && !isBanned()
         && (
           isOwner(request.resource.data.organizer_id) || isAdmin()
         )
@@ -102,17 +106,15 @@ service cloud.firestore {
         && request.resource.data.is_active == true
         && request.resource.data.created_at == request.time;
 
-      // Organisor edits their own momento; mutating ownership / created_at
-      // is forbidden so re-attribution can't happen via update.
       allow update: if isOwner(resource.data.organizer_id)
+        && !isBanned()
         && request.resource.data.organizer_id == resource.data.organizer_id
         && request.resource.data.created_at == resource.data.created_at;
 
-      // Admins can edit anything, including changing organizer_id.
       allow update: if isAdmin();
 
-      // Delete by the organizer or by an admin.
-      allow delete: if isOwner(resource.data.organizer_id) || isAdmin();
+      allow delete: if (isOwner(resource.data.organizer_id) && !isBanned())
+        || isAdmin();
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -121,17 +123,37 @@ service cloud.firestore {
     match /follows/{id} {
       allow read: if isSignedIn();
       allow create: if isOwner(request.resource.data.follower_id)
+        && !isBanned()
         && request.resource.data.following_id is string
         && request.resource.data.created_at == request.time;
       allow delete: if isOwner(resource.data.follower_id) || isAdmin();
     }
 
     // ────────────────────────────────────────────────────────────────────
-    // transactions/{id} — v2 (Stripe). Admins can read for support.
+    // transactions/{id} — v2 (Stripe).
     // ────────────────────────────────────────────────────────────────────
     match /transactions/{id} {
       allow read: if isSignedIn() && (isOwner(resource.data.user_id) || isAdmin());
       allow write: if false;
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // audit_log/{id} — admin-only, append-only.
+    //
+    // Each entry captures one admin-initiated mutation. We keep the schema
+    // permissive (before/after as maps) so it can grow without rule churn;
+    // a tighter shape can land in R4.x once we stabilise the action set.
+    // ────────────────────────────────────────────────────────────────────
+    match /audit_log/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.actor_id == request.auth.uid
+        && request.resource.data.action is string
+        && request.resource.data.target_id is string
+        && request.resource.data.target_type is string
+        && request.resource.data.created_at == request.time;
+      // Append-only by construction — never edit or delete history.
+      allow update, delete: if false;
     }
   }
 }
