@@ -30,6 +30,15 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Google Maps Android SDK key.
+             The actual value is injected via gradle manifestPlaceholders from
+             the GOOGLE_MAPS_KEY_ANDROID env var (or `local.properties`). When
+             unset, Maps falls back to a watermarked dev surface — fine for
+             non-map flows, broken for the Map tab. See CLAUDE.md. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${GOOGLE_MAPS_KEY_ANDROID}" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

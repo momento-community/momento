@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
 
 import '../../config/theme.dart';
@@ -10,6 +11,11 @@ import '../../core/widgets/slide_up_route.dart';
 import '../discover/discover_providers.dart';
 import '../filter/filter_bottom_sheet.dart';
 import '../momento_detail/momento_detail_screen.dart';
+
+/// Default camera target — central Brussels. Used when the feed is empty so
+/// the map still renders at a sensible zoom instead of (0, 0).
+const _kBrusselsCenter = LatLng(50.8503, 4.3517);
+const double _kInitialZoom = 12;
 
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
@@ -20,6 +26,47 @@ class MapScreen extends ConsumerStatefulWidget {
 
 class _MapScreenState extends ConsumerState<MapScreen> {
   Momento? _selected;
+  GoogleMapController? _controller;
+
+  /// Build a marker per Momento. Tapping a marker selects it and animates the
+  /// camera to its location. We keyframe `MarkerId(momento.id)` so widget
+  /// rebuilds reuse the same marker instance.
+  Set<Marker> _markersFor(List<Momento> feed) {
+    return feed
+        .where((m) => m.locationLat != 0 || m.locationLng != 0)
+        .map(
+          (m) => Marker(
+            markerId: MarkerId(m.id),
+            position: LatLng(m.locationLat, m.locationLng),
+            onTap: () {
+              setState(() => _selected = m);
+              _controller?.animateCamera(
+                CameraUpdate.newLatLng(
+                  LatLng(m.locationLat, m.locationLng),
+                ),
+              );
+            },
+          ),
+        )
+        .toSet();
+  }
+
+  CameraPosition _initialCameraFor(List<Momento> feed) {
+    if (feed.isEmpty) {
+      return const CameraPosition(target: _kBrusselsCenter, zoom: _kInitialZoom);
+    }
+    final first = feed.first;
+    return CameraPosition(
+      target: LatLng(first.locationLat, first.locationLng),
+      zoom: _kInitialZoom,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,22 +75,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       backgroundColor: AppColors.background,
       body: Stack(
         children: [
-          const _MapBackground(),
-          // Markers — fake positions for now (TODO Phase 4: real GeoPoints with
-          // GoogleMap once the platform API keys land via --dart-define).
-          ...feed.take(8).toList().asMap().entries.map((e) {
-            final i = e.key;
-            final m = e.value;
-            final dx = ((i * 0.17) - 0.4).clamp(-0.85, 0.85);
-            final dy = (((i + 1) * 0.13) - 0.5).clamp(-0.7, 0.6);
-            return Align(
-              alignment: Alignment(dx, dy),
-              child: _MapMarker(
-                selected: _selected?.id == m.id,
-                onTap: () => setState(() => _selected = m),
-              ),
-            );
-          }),
+          GoogleMap(
+            initialCameraPosition: _initialCameraFor(feed),
+            markers: _markersFor(feed),
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+            mapToolbarEnabled: false,
+            compassEnabled: false,
+            onMapCreated: (c) => _controller = c,
+            onTap: (_) => setState(() => _selected = null),
+          ),
           // Top chrome
           SafeArea(
             bottom: false,
@@ -87,83 +128,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _MapBackground extends StatelessWidget {
-  const _MapBackground();
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _GridPainter(),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.surface,
-              Colors.white,
-              AppColors.surface.withValues(alpha: 0.6),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.divider.withValues(alpha: 0.6)
-      ..strokeWidth = 1;
-    const step = 48.0;
-    for (double x = 0; x < size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
-
-class _MapMarker extends StatelessWidget {
-  const _MapMarker({required this.selected, required this.onTap});
-
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final size = selected ? 28.0 : 22.0;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: AppColors.primary,
-          shape: BoxShape.circle,
-          border: Border.all(color: AppColors.background, width: 3),
-          boxShadow: AppShadows.md,
-        ),
-        alignment: Alignment.center,
-        child: Container(
-          width: size * 0.28,
-          height: size * 0.28,
-          decoration: const BoxDecoration(
-            color: AppColors.onPrimary,
-            shape: BoxShape.circle,
-          ),
-        ),
       ),
     );
   }

@@ -31,6 +31,18 @@
 
   <title>momento</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    Google Maps JS SDK — required by `google_maps_flutter_web`. The
+    `__GOOGLE_MAPS_KEY_WEB__` token is replaced post-build by CI
+    (.github/workflows/deploy-hosting.yml) with the value of the
+    GOOGLE_MAPS_KEY_WEB secret. For local dev, replace it manually or run
+    `tool/inject_maps_key.sh` (see CLAUDE.md → Common commands). When the
+    token is left in place, the map widget renders a neutral grey area —
+    safe for mock-mode e2e runs that don't ship a key.
+  -->
+  <script async defer
+          src="https://maps.googleapis.com/maps/api/js?key=__GOOGLE_MAPS_KEY_WEB__&libraries=places&v=weekly"></script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

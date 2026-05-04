@@ -45,6 +45,17 @@ jobs:
             --no-tree-shake-icons \
             --dart-define=GOOGLE_MAPS_KEY_WEB="$GOOGLE_MAPS_KEY_WEB"
 
+      - name: Inject Google Maps web key into index.html
+        env:
+          GOOGLE_MAPS_KEY_WEB: ${{ secrets.GOOGLE_MAPS_KEY_WEB }}
+        run: |
+          if [ -z "$GOOGLE_MAPS_KEY_WEB" ]; then
+            echo "::warning::GOOGLE_MAPS_KEY_WEB secret is empty — Maps will not render."
+          fi
+          sed -i "s|__GOOGLE_MAPS_KEY_WEB__|${GOOGLE_MAPS_KEY_WEB}|g" build/web/index.html
+          # Sanity check: token should be gone (or empty if secret was empty).
+          ! grep -q "__GOOGLE_MAPS_KEY_WEB__" build/web/index.html
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"

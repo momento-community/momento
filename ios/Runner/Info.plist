@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Google Maps iOS SDK key. Resolved at archive time from the
+	     GOOGLE_MAPS_KEY_IOS xcconfig user-defined setting. Leave the
+	     placeholder in place if unset — AppDelegate skips
+	     GMSServices.provideAPIKey when the value is empty. -->
+	<key>GMSApiKey</key>
+	<string>$(GOOGLE_MAPS_KEY_IOS)</string>
 </dict>
 </plist>

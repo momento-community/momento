@@ -87,6 +87,18 @@ gsutil cors get gs://momento-b23c0.firebasestorage.app   # verify
 
 If gsutil errors with "Reauthentication required" → `gcloud auth login` first. Re-apply when adding origins.
 
+## Google Maps keys
+
+Three keys, one per platform. Restrict each one in GCP Console:
+- **Web** → HTTP referrers: `momento.community/*`, `*.momento.community/*`, `momento-b23c0.web.app/*`, `localhost:*`
+- **Android** → app restriction `community.momento.app` + SHA-1 (debug + release)
+- **iOS** → bundle id `community.momento.app`
+
+Key wiring per platform:
+- **Web** (`web/index.html`) — script tag with `__GOOGLE_MAPS_KEY_WEB__` token. CI (`deploy-hosting.yml`) sed-replaces it from the `GOOGLE_MAPS_KEY_WEB` repo secret. For local web dev, replace the token by hand in `web/index.html` or set `android/local.properties`-style override (see below).
+- **Android** (`AndroidManifest.xml`) — `${GOOGLE_MAPS_KEY_ANDROID}` placeholder filled by gradle `manifestPlaceholders`. Resolution: env var → `android/local.properties` (`googleMapsKeyAndroid=...`).
+- **iOS** (`Info.plist` → `GMSApiKey = $(GOOGLE_MAPS_KEY_IOS)`) — set the `GOOGLE_MAPS_KEY_IOS` user-defined build setting in Xcode (Runner target → Build Settings → +) or in an xcconfig file. `AppDelegate.swift` reads it and skips `provideAPIKey` if empty.
+
 ## OAuth authorized domains
 
 Custom domains aren't auto-added by Firebase Hosting. Manual:
@@ -114,8 +126,11 @@ Images fetched from picsum.photos at run time, uploaded to Storage at canonical 
 | Storage CORS applied | ✅ (re-apply via `gsutil` after edits to `storage.cors.json`) |
 | `momento.community` in Authorized domains | ☐ |
 | GitHub secret `FIREBASE_TOKEN` (`firebase login:ci`) | ✅ |
-| GitHub secret `GOOGLE_MAPS_KEY_WEB` | ☐ (when Maps lands) |
-| Google Maps API keys (iOS / Android / Web) | ☐ (later — pass via `--dart-define`) |
+| GitHub secret `GOOGLE_MAPS_KEY_WEB` | ☐ (paste web key — CI injects into index.html) |
+| GCP: enable **Maps JavaScript API**, **Maps SDK for Android**, **Maps SDK for iOS** | ☐ |
+| GCP: create + restrict Web / Android / iOS keys | ☐ (see "Google Maps keys") |
+| Android key in `android/local.properties` (`googleMapsKeyAndroid=...`) | ☐ (when building Android) |
+| iOS key as `GOOGLE_MAPS_KEY_IOS` xcconfig user-defined setting | ☐ (when building iOS) |
 | First admin role set on a user doc | ✅ |
 
 ## Common commands
@@ -125,6 +140,12 @@ Images fetched from picsum.photos at run time, uploaded to Storage at canonical 
 flutter run -d chrome                                          # default
 flutter run -d chrome --dart-define=USE_MOCK_DATA=true         # offline UI dev (bypasses auth + Firestore)
 flutter analyze
+
+# Local web dev with Maps — replace the token in web/index.html before run.
+# CI does this automatically; this is only for `flutter run -d chrome`.
+sed -i "s|__GOOGLE_MAPS_KEY_WEB__|$GOOGLE_MAPS_KEY_WEB|g" web/index.html  # bash
+# (PowerShell:)
+# (Get-Content web/index.html) -replace '__GOOGLE_MAPS_KEY_WEB__', $env:GOOGLE_MAPS_KEY_WEB | Set-Content web/index.html
 
 # Manual deploys (CI runs these on push to main when relevant files change)
 firebase deploy --only hosting --project momento-b23c0

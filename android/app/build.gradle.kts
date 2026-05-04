@@ -30,6 +30,19 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Google Maps Android SDK key. Resolution order:
+        //   1. GOOGLE_MAPS_KEY_ANDROID env var (CI / local shell)
+        //   2. `googleMapsKeyAndroid` in android/local.properties (gitignored)
+        //   3. empty string — map renders watermarked / blank.
+        val mapsKey = System.getenv("GOOGLE_MAPS_KEY_ANDROID")
+            ?: run {
+                val props = java.util.Properties()
+                val f = rootProject.file("local.properties")
+                if (f.exists()) f.inputStream().use { props.load(it) }
+                props.getProperty("googleMapsKeyAndroid", "")
+            }
+        manifestPlaceholders["GOOGLE_MAPS_KEY_ANDROID"] = mapsKey
     }
 
     buildTypes {
