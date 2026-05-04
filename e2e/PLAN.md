@@ -83,6 +83,16 @@ Selectors live in `e2e/selectors.ts` so refactors only touch one file.
 - Edit Profile button visible
 - Logout link triggers sign-out
 
+### 7b. Roles (`roles.spec.ts`) — mock-data only
+- Profile in default-`user` mode shows the "Want to host? / Become an organisor" card
+- Create screen for `user` shows the upgrade panel (no form labels)
+- /admin renders the panel header in mock mode (Firestore streams stay loading)
+- Momento detail's analytics card is hidden for non-organizer viewers
+
+(Organisor + admin role-specific surfaces — analytics counters live, audit
+log appending, ban toggle ringing the user row red — wait for emulator
+wiring in P3 so we can inject a `users/{uid}` doc per test.)
+
 ### 8. Visual regression (optional, `visual.spec.ts`)
 - Screenshot diff on each main screen at iPhone 14 Pro frame (390×844)
 - Tolerates 0.1% pixel diff

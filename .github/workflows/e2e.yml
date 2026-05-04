@@ -65,6 +65,7 @@ jobs:
         run: |
           npm run test -- \
             smoke.spec.ts discover.spec.ts filter.spec.ts map.spec.ts \
+            roles.spec.ts \
             --reporter=list,html
 
       - name: Upload Playwright report
