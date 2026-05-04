@@ -19,16 +19,30 @@ service firebase.storage {
       return request.resource.size < 10 * 1024 * 1024;
     }
 
-    // Avatars: users/{uid}/avatar.{ext}  →  only the user writes their own.
-    match /users/{uid}/{allPaths=**} {
-      allow read: if true;
-      allow write: if isOwner(uid) && isImage() && under10MB();
+    // Cross-service: admins can write any user/momento image. Reads the
+    // user's own role from Firestore. Defaults to 'user' when the field
+    // is missing on legacy docs.
+    function isAdmin() {
+      return isSignedIn()
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid))
+            .data.get('role', 'user') == 'admin';
     }
 
-    // Momento photos: momentos/{organizerUid}/{momentoId}/{file}
+    // Avatars: users/{uid}/avatar.{ext}. Self-write or admin-write.
+    match /users/{uid}/{allPaths=**} {
+      allow read: if true;
+      allow write: if (isOwner(uid) || isAdmin())
+        && isImage()
+        && under10MB();
+    }
+
+    // Momento photos: momentos/{organizerUid}/{momentoId}/{file}.
+    // Organizer writes their own; admin writes any.
     match /momentos/{organizerUid}/{allPaths=**} {
       allow read: if true;
-      allow write: if isOwner(organizerUid) && isImage() && under10MB();
+      allow write: if (isOwner(organizerUid) || isAdmin())
+        && isImage()
+        && under10MB();
     }
   }
 }

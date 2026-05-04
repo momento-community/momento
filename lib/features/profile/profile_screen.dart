@@ -1,4 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,7 +10,7 @@ import 'package:go_router/go_router.dart';
 import '../../config/env.dart';
 import '../../config/theme.dart';
 import '../../core/firebase/providers.dart';
-import '../../core/mock/mock_momentos.dart';
+import '../../core/seeds/demo_seed.dart';
 import '../../core/widgets/momento_button.dart';
 import '../../core/widgets/momento_card.dart';
 import '../../core/widgets/momento_logo.dart';
@@ -328,9 +330,13 @@ class _DevSeedButton extends ConsumerStatefulWidget {
 
 class _DevSeedButtonState extends ConsumerState<_DevSeedButton> {
   bool _busy = false;
+  int _done = 0;
+  int _total = 0;
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = ref.watch(isAdminProvider);
+    final progress = _total == 0 ? 0.0 : _done / _total;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -344,13 +350,37 @@ class _DevSeedButtonState extends ConsumerState<_DevSeedButton> {
           Text('DEV TOOLS',
               style: AppText.labelSmall
                   .copyWith(color: AppColors.secondaryText)),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            isAdmin
+                ? 'Seeds organisor + plain-user docs and momentos with cover '
+                    'photos in Firebase Storage. Admin only.'
+                : 'Seeding requires the admin role.',
+            style: AppText.labelSmall
+                .copyWith(color: AppColors.secondaryText, height: 1.4),
+          ),
           const SizedBox(height: AppSpacing.sm),
           MomentoButton(
-            label: _busy ? 'Seeding…' : 'Seed dev Momentos',
+            label: _busy
+                ? 'Seeding $_done/$_total…'
+                : 'Seed demo data',
             icon: Icons.data_array_rounded,
             size: MomentoButtonSize.small,
-            onPressed: _busy ? null : _seed,
+            onPressed: (_busy || !isAdmin) ? null : _seed,
           ),
+          if (_busy && _total > 0) ...[
+            const SizedBox(height: AppSpacing.sm),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadii.full),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 4,
+                backgroundColor: AppColors.divider,
+                valueColor:
+                    const AlwaysStoppedAnimation(AppColors.primary),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -359,26 +389,39 @@ class _DevSeedButtonState extends ConsumerState<_DevSeedButton> {
   Future<void> _seed() async {
     final user = ref.read(authStateChangesProvider).value;
     if (user == null) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _done = 0;
+      _total = 0;
+    });
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final repo = ref.read(momentoRepositoryProvider);
-      final userDoc = ref.read(currentUserDocProvider).value?.data();
-      final n = await repo.seedDevMomentos(
-        mocks: mockMomentos,
-        organizerUid: user.uid,
-        organizerName: (userDoc?['display_name'] as String?) ??
-            user.displayName ??
-            user.email ??
-            'Organizer',
-        organizerAvatarUrl:
-            (userDoc?['avatar_url'] as String?) ?? user.photoURL ?? '',
+      final seed = DemoSeed(
+        firestore: FirebaseFirestore.instance,
+        storage: FirebaseStorage.instance,
       );
-      messenger.showSnackBar(SnackBar(content: Text('Seeded $n Momentos')));
+      final result = await seed.run(
+        onProgress: (done, total) {
+          if (!mounted) return;
+          setState(() {
+            _done = done;
+            _total = total;
+          });
+        },
+      );
+      messenger.showSnackBar(
+        SnackBar(content: Text('Seeded $result')),
+      );
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Seed failed: $e')));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _done = 0;
+          _total = 0;
+        });
+      }
     }
   }
 }

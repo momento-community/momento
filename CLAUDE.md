@@ -102,6 +102,21 @@ Full plan: [docs/roles-plan.md](docs/roles-plan.md).
 - **`onMomentoLikeChange` dropped.** `liked_by` is the source of truth; `like_count` is kept in sync atomically inside `toggleLike`'s transaction.
 - **Mock-data fallback.** Pass `--dart-define=USE_MOCK_DATA=true` to bypass Firestore and read the in-memory fixture from `lib/core/mock/mock_momentos.dart`. Default is false.
 
+## Storage layout + sample data
+
+Two canonical paths for Firebase Storage:
+- `users/{uid}/avatar.jpg` — one avatar per user; overwrite-safe.
+- `momentos/{organizerUid}/{momentoId}/cover.jpg` — partitioned by organizer so storage rules can scope writes by ownership.
+
+All uploads carry `Cache-Control: public, max-age=31536000, immutable` (the file at a given path is treated as content-addressable; a fresh upload either overwrites with the same intent or uses a new path).
+
+`storage.rules` uses a **cross-service** `isAdmin()` helper that reads `users/{uid}.role` from Firestore at evaluation time. Lets the admin seed write to any user/momento path without giving up the per-organizer write isolation in the regular path.
+
+**Seed flow** lives in `lib/core/seeds/demo_seed.dart`. Triggered by the debug-mode "Seed demo data" button on Profile (gated behind `isAdminProvider`). It fetches placeholder images from picsum.photos, uploads to Storage at the canonical paths, then writes the resulting download URLs into Firestore docs:
+- 11 organisor user docs (`role: 'organisor'`) with avatars
+- 3 plain-user docs (`role: 'user'`) with avatars
+- 12 momento docs with cover photos under their organizer's path
+
 ## Firebase Console / GCP — manual steps still required
 
 - **Authentication → Sign-in method:** enable Google, Apple, Email/Password. ✅ done
