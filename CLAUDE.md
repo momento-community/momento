@@ -121,6 +121,24 @@ Key wiring per platform:
 - **Android** (`AndroidManifest.xml`) — `${GOOGLE_MAPS_KEY_ANDROID}` placeholder filled by gradle `manifestPlaceholders`. Resolution: env var → `android/local.properties` (`googleMapsKeyAndroid=...`).
 - **iOS** (`Info.plist` → `GMSApiKey = $(GOOGLE_MAPS_KEY_IOS)`) — set the `GOOGLE_MAPS_KEY_IOS` user-defined build setting in Xcode (Runner target → Build Settings → +) or in an xcconfig file. `AppDelegate.swift` reads it and skips `provideAPIKey` if empty.
 
+## Firebase deploy token rotation
+
+Both deploy workflows authenticate with the `FIREBASE_TOKEN` secret (output of `firebase login:ci`). Google occasionally invalidates these tokens — when that happens both deploys fail with `Authentication Error: Your credentials are no longer valid`. Refresh:
+
+```bash
+npm install -g firebase-tools@13.29.x
+firebase login:ci
+# browser flow → token printed at the end → copy it
+```
+
+Then GitHub → Settings → Secrets and variables → Actions → `FIREBASE_TOKEN` → **Update secret**.
+
+Re-trigger the failed deploy via Actions → Deploy Hosting / Deploy Rules → **Run workflow**.
+
+**Trap to know about:** the deploy steps pipe through `tail -120`. Bash by default returns the exit code of the LAST command in a pipeline (always 0 for tail), so a failed deploy looks "green" in the Actions UI. Both workflows now `set -o pipefail` to surface failures correctly. If you ever rewrite these steps, keep `pipefail` on or drop the pipe entirely.
+
+Long-term: switch to **Workload Identity Federation** (GitHub OIDC → GCP, no long-lived secrets, never expires). Blocked today by the org policy `iam.disableServiceAccountKeyCreation` that pushed us to FIREBASE_TOKEN in the first place — WIF is the policy-friendly path forward.
+
 ## OAuth authorized domains
 
 Custom domains aren't auto-added by Firebase Hosting. Manual:

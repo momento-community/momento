@@ -35,7 +35,14 @@ jobs:
       - name: Deploy
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        # `set -o pipefail` is critical: without it, `firebase deploy ...
+        # | tail -120` returns tail's exit code (always 0), so an auth /
+        # deploy failure looks "green" in the Actions UI. We learned this
+        # the hard way — favicons + rule fix silently failed to deploy
+        # for several commits before anyone noticed.
+        shell: bash
         run: |
+          set -e -o pipefail
           firebase --version
           firebase deploy \
             --only firestore:rules,firestore:indexes,storage \

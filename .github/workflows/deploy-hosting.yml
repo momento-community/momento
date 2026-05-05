@@ -68,7 +68,13 @@ jobs:
       - name: Deploy to Firebase Hosting
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        # `set -o pipefail` is critical: without it, `firebase deploy ...
+        # | tail -120` returns tail's exit code (always 0), so an auth /
+        # deploy failure looks "green" in the Actions UI. See the
+        # matching comment in deploy-rules.yml.
+        shell: bash
         run: |
+          set -e -o pipefail
           firebase --version
           firebase deploy \
             --only hosting \
