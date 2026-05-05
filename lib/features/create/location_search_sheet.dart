@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../config/theme.dart';
 import '../../core/firebase/providers.dart';
@@ -45,6 +46,26 @@ class _LocationSearchBodyState extends ConsumerState<_LocationSearchBody> {
   // fresh one.
   String _activeQuery = '';
 
+  // Per-sheet session token + locale-derived region/language. Google
+  // Places bills autocomplete + 1 details call as a single session when
+  // the same UUID is passed across them; we generate one per sheet open
+  // and reuse it for every typed query and the final resolve. Region +
+  // language biases narrow the server-side search and tend to come back
+  // faster for in-region queries.
+  late final String _sessionToken;
+  String? _regionCode;
+  String? _languageCode;
+
+  @override
+  void initState() {
+    super.initState();
+    _sessionToken = const Uuid().v4();
+    final locale = WidgetsBinding.instance.platformDispatcher.locale;
+    _languageCode = locale.languageCode.isEmpty ? null : locale.languageCode;
+    final region = locale.countryCode;
+    _regionCode = (region == null || region.isEmpty) ? null : region.toLowerCase();
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -64,17 +85,23 @@ class _LocationSearchBodyState extends ConsumerState<_LocationSearchBody> {
       return;
     }
     setState(() => _loading = true);
-    // 300ms balances quick feedback against hammering the autocomplete
-    // endpoint (it's metered + costs money per session).
+    // 180ms — short enough that suggestions feel responsive on every
+    // keystroke pause, long enough to skip the per-letter burst when
+    // someone types a long query in one go.
     _debounce =
-        Timer(const Duration(milliseconds: 300), () => _search(trimmed));
+        Timer(const Duration(milliseconds: 180), () => _search(trimmed));
   }
 
   Future<void> _search(String query) async {
     _activeQuery = query;
     try {
       final results =
-          await ref.read(placeSearchServiceProvider).autocomplete(query);
+          await ref.read(placeSearchServiceProvider).autocomplete(
+                query,
+                regionCode: _regionCode,
+                languageCode: _languageCode,
+                sessionToken: _sessionToken,
+              );
       if (!mounted) return;
       // Drop the response if a newer query is already in flight.
       if (_activeQuery != query) return;
@@ -99,8 +126,11 @@ class _LocationSearchBodyState extends ConsumerState<_LocationSearchBody> {
       _resolving = true;
       _error = null;
     });
-    final picked =
-        await ref.read(placeSearchServiceProvider).resolve(p.placeId);
+    final picked = await ref.read(placeSearchServiceProvider).resolve(
+          p.placeId,
+          sessionToken: _sessionToken,
+          languageCode: _languageCode,
+        );
     if (!mounted) return;
     if (picked == null) {
       setState(() {

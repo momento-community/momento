@@ -1,5 +1,7 @@
+import 'dart:collection';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../config/env.dart';
@@ -51,6 +53,22 @@ class PickedPlace {
 /// Auth: re-uses the existing `GOOGLE_MAPS_KEY_WEB` repo secret (passed
 /// via `--dart-define`). The same key needs **Places API (New)** added
 /// to its API restrictions in GCP Console — see CLAUDE.md.
+///
+/// **Latency optimisations:**
+/// * Per-instance LRU/FIFO cache (cap [_cacheCap]) — re-typing a query the
+///   user already saw returns instantly with no network call. The cache
+///   is keyed by `<query>|<region>|<lang>` so different region biases
+///   don't alias to the same entry.
+/// * Optional `regionCode` + `languageCode` bias — narrows the
+///   server-side search and tends to come back faster for in-region
+///   queries.
+/// * Optional `sessionToken` — Google's recommended pattern: pass the
+///   same UUID across all autocomplete calls in one user session, then
+///   pass it again on `resolve(...)`. Bills the whole session as one
+///   call instead of N. Negligible latency win, real billing win.
+/// * Stopwatch + `debugPrint` on every call — surfaces actual round-trip
+///   times in DevTools console so future "search feels slow" reports
+///   are diagnosable without instrumenting.
 class PlaceSearchService {
   PlaceSearchService({String? apiKey, http.Client? client})
       : _apiKey = apiKey ?? Env.googleMapsKeyWeb,
@@ -64,13 +82,54 @@ class PlaceSearchService {
   static String _detailsUrl(String placeId) =>
       'https://places.googleapis.com/v1/places/$placeId';
 
+  /// Per-instance autocomplete cache, FIFO-evicted. ~32 entries is plenty
+  /// for a single create-flow session — the search field rarely sees more
+  /// distinct queries than that, and stale region-biased results would
+  /// just be re-fetched once the cache rolls over.
+  static const _cacheCap = 32;
+  final LinkedHashMap<String, List<PlacePrediction>> _autocompleteCache =
+      LinkedHashMap();
+
   /// Returns up to ~5 typeahead predictions for [query]. Empty queries +
   /// missing API keys short-circuit to `[]` so callers can safely call
   /// this on every keystroke (still recommend debouncing in the UI).
-  Future<List<PlacePrediction>> autocomplete(String query) async {
+  ///
+  /// [regionCode] / [languageCode] bias the server's search (ISO 3166-1
+  /// alpha-2 + IETF BCP 47 respectively). [sessionToken] groups
+  /// autocomplete calls into one billing session — pass the same UUID
+  /// across the whole sheet's lifetime, then again on `resolve(...)`.
+  Future<List<PlacePrediction>> autocomplete(
+    String query, {
+    String? regionCode,
+    String? languageCode,
+    String? sessionToken,
+  }) async {
     final q = query.trim();
     if (q.isEmpty || _apiKey.isEmpty) return const [];
+
+    final cacheKey = '$q|${regionCode ?? ''}|${languageCode ?? ''}';
+    final cached = _autocompleteCache[cacheKey];
+    if (cached != null) {
+      // Move to most-recent end so frequently-hit entries survive eviction.
+      _autocompleteCache.remove(cacheKey);
+      _autocompleteCache[cacheKey] = cached;
+      if (kDebugMode) {
+        debugPrint('[PlaceSearch] autocomplete "$q" → cache hit '
+            '(${cached.length} predictions)');
+      }
+      return cached;
+    }
+
+    final stopwatch = Stopwatch()..start();
     try {
+      final body = <String, Object?>{
+        'input': q,
+        if (regionCode != null && regionCode.isNotEmpty) 'regionCode': regionCode,
+        if (languageCode != null && languageCode.isNotEmpty)
+          'languageCode': languageCode,
+        if (sessionToken != null && sessionToken.isNotEmpty)
+          'sessionToken': sessionToken,
+      };
       final res = await _client
           .post(
             Uri.parse(_autocompleteUrl),
@@ -83,29 +142,57 @@ class PlaceSearchService {
               'X-Goog-FieldMask':
                   'suggestions.placePrediction.placeId,suggestions.placePrediction.text',
             },
-            body: json.encode({'input': q}),
+            body: json.encode(body),
           )
           .timeout(const Duration(seconds: 6));
+      stopwatch.stop();
+      if (kDebugMode) {
+        debugPrint('[PlaceSearch] autocomplete "$q" → '
+            '${res.statusCode} in ${stopwatch.elapsedMilliseconds}ms');
+      }
       if (res.statusCode != 200) return const [];
       final data = json.decode(res.body) as Map<String, dynamic>;
       final suggestions = (data['suggestions'] as List?) ?? const [];
-      return suggestions
+      final out = suggestions
           .map((s) => _decodePrediction(s as Map<String, dynamic>))
           .whereType<PlacePrediction>()
           .toList(growable: false);
-    } catch (_) {
+      _autocompleteCache[cacheKey] = out;
+      while (_autocompleteCache.length > _cacheCap) {
+        _autocompleteCache.remove(_autocompleteCache.keys.first);
+      }
+      return out;
+    } catch (e) {
+      stopwatch.stop();
+      if (kDebugMode) {
+        debugPrint('[PlaceSearch] autocomplete "$q" failed in '
+            '${stopwatch.elapsedMilliseconds}ms: $e');
+      }
       return const [];
     }
   }
 
   /// Resolves a [placeId] to its lat/lng + city + formatted address.
   /// Returns null when the place doesn't exist or the API fails.
-  Future<PickedPlace?> resolve(String placeId) async {
+  Future<PickedPlace?> resolve(
+    String placeId, {
+    String? sessionToken,
+    String? languageCode,
+  }) async {
     if (placeId.isEmpty || _apiKey.isEmpty) return null;
+    final stopwatch = Stopwatch()..start();
     try {
+      final params = <String, String>{
+        if (sessionToken != null && sessionToken.isNotEmpty)
+          'sessionToken': sessionToken,
+        if (languageCode != null && languageCode.isNotEmpty)
+          'languageCode': languageCode,
+      };
+      final uri = Uri.parse(_detailsUrl(placeId))
+          .replace(queryParameters: params.isEmpty ? null : params);
       final res = await _client
           .get(
-            Uri.parse(_detailsUrl(placeId)),
+            uri,
             headers: {
               'X-Goog-Api-Key': _apiKey,
               'X-Goog-FieldMask':
@@ -113,6 +200,11 @@ class PlaceSearchService {
             },
           )
           .timeout(const Duration(seconds: 6));
+      stopwatch.stop();
+      if (kDebugMode) {
+        debugPrint('[PlaceSearch] resolve "$placeId" → '
+            '${res.statusCode} in ${stopwatch.elapsedMilliseconds}ms');
+      }
       if (res.statusCode != 200) return null;
       final data = json.decode(res.body) as Map<String, dynamic>;
       final loc = data['location'] as Map<String, dynamic>?;
@@ -135,7 +227,12 @@ class PlaceSearchService {
         }
       }
       return PickedPlace(label: label, city: city, lat: lat, lng: lng);
-    } catch (_) {
+    } catch (e) {
+      stopwatch.stop();
+      if (kDebugMode) {
+        debugPrint('[PlaceSearch] resolve "$placeId" failed in '
+            '${stopwatch.elapsedMilliseconds}ms: $e');
+      }
       return null;
     }
   }
