@@ -29,18 +29,18 @@ Flutter 3.38+ · Riverpod 3 (`Notifier` API) · `go_router` · Firebase Auth/Fir
 - Lucide / Material outlined icons only. **No emoji. No gradients.**
 - Cards: 16px radius, 1px `divider` border, `sm` shadow. Buttons: white-bg/charcoal-border default; max one filled `primary` per screen. Inputs: `surface` bg, 12px radius.
 - Theme tokens in [`lib/config/theme.dart`](lib/config/theme.dart) — **never** inline hex.
-- Test on iPhone 14 Pro (390×844). Web responsive: 1 col `<600px`, 2 cols `600–1200px`.
+- Test on iPhone 14 Pro (393×852 in Playwright). Web responsive: adaptive 2 / 3 / 4 cols at tablet (≥720) / desktop (≥1080) / wide (≥1440); two-pane Discover at ultrawide (≥1600). Full plan in [`docs/responsive-plan.md`](docs/responsive-plan.md).
 
 ## Key files
 
-- `lib/config/{env,theme,router}.dart` — config, design tokens, go_router with role + auth redirects
+- `lib/config/{env,theme,router,breakpoints}.dart` — config, design tokens, go_router with role + auth redirects, responsive breakpoints
 - `lib/core/firebase/providers.dart` — Riverpod providers + role/freemium derivations
 - `lib/core/repositories/` — `MomentoRepository`, `UserRepository`, `StorageRepository`, `AuditLogRepository`, `FollowRepository`. All Firestore writes go through here.
-- `lib/core/widgets/{momento_logo,momento_button,slide_up_route,like_button,follow_button}.dart`
+- `lib/core/widgets/{momento_logo,momento_button,slide_up_route,like_button,follow_button,responsive_content}.dart`
 - `lib/core/seeds/demo_seed.dart` — admin-gated demo data flow
 - `lib/shared/filter_state.dart` — shared filter state for Discover + Map
 - `firestore.rules` · `firestore.indexes.json` · `storage.rules` · `storage.cors.json`
-- `docs/{design-export,roles-plan}.md`
+- `docs/{design-export,roles-plan,responsive-plan}.md`
 - `.github/workflows/{deploy-hosting,deploy-rules,e2e}.yml`
 
 ## User roles
@@ -203,8 +203,11 @@ firebase deploy --only firestore:rules,firestore:indexes,storage --project momen
 flutter build ipa
 flutter build appbundle
 
-# E2e
-cd e2e && BASE_URL=http://localhost:8080 npm test    # against `flutter run -d web-server --web-port 8080`
+# E2e — full CI matrix (mobile + tablet + desktop + ultrawide)
+flutter build web --release --no-tree-shake-icons --dart-define=USE_MOCK_DATA=true
+npx -y http-server build/web -p 8080 -s &
+cd e2e && BASE_URL=http://localhost:8080 npx playwright test \
+  smoke discover filter map roles social profile responsive --reporter=list
 ```
 
 ## Development rules
