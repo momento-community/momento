@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { waitForRoute } from "../helpers";
+import { flutterText, waitForRoute } from "../helpers";
 
 /**
  * Adaptive-layout assertions for Phase 2.
@@ -72,10 +72,52 @@ test.describe("responsive — Discover masonry", () => {
 
   test("desktop (≥ 1080 effective) ⇒ ≥ 3 cols, content shifted by extended rail",
       async ({ page, viewport }) => {
-    test.skip((viewport?.width ?? 0) < 1080, "desktop-only");
+    const w = viewport?.width ?? 0;
+    test.skip(w < 1080 || w >= 1600, "desktop-only (single-pane)");
     const rects = await readCardRects(page);
     expect(firstRowCount(rects)).toBeGreaterThanOrEqual(3);
     // Extended rail is ~220 px — first card starts well after it.
     expect(rects[0].left).toBeGreaterThan(180);
+  });
+});
+
+test.describe("responsive — Phase 3 two-pane Discover (≥ ultrawide)", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await waitForRoute(page, /\/discover/);
+    await page.waitForTimeout(2_500);
+  });
+
+  test("right pane shows the empty 'Select a Momento' state by default",
+      async ({ page, viewport }) => {
+    test.skip((viewport?.width ?? 0) < 1600, "ultrawide-only");
+    await expect(flutterText(page, "Select a Momento")).toBeVisible({
+      timeout: 8_000,
+    });
+  });
+
+  test("tapping a card populates the right pane in-place (no route change)",
+      async ({ page, viewport }) => {
+    test.skip((viewport?.width ?? 0) < 1600, "ultrawide-only");
+    const beforeUrl = page.url();
+    // First mock momento — title rendered as canvas text.
+    await flutterText(page, "Abstract Realities Vernissage").click();
+    // The detail's sticky-bar copy is unique to MomentoDetailScreen.
+    await expect(flutterText(page, "Reserve Spot")).toBeVisible({
+      timeout: 8_000,
+    });
+    // URL should NOT have changed — two-pane uses state, not navigation.
+    expect(page.url()).toBe(beforeUrl);
+    // The empty placeholder must be gone.
+    await expect(flutterText(page, "Select a Momento")).toHaveCount(0);
+  });
+
+  test("masonry stays 2-col in the (narrower) left pane",
+      async ({ page, viewport }) => {
+    test.skip((viewport?.width ?? 0) < 1600, "ultrawide-only");
+    const rects = await readCardRects(page);
+    // Left pane is ~50 % of viewport minus the rail — comfortably below
+    // the desktop breakpoint, so adaptiveCols returns 2.
+    expect(firstRowCount(rects)).toBe(2);
   });
 });

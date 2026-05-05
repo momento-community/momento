@@ -18,8 +18,15 @@ import '../discover/discover_providers.dart';
 import '../organizer/organizer_detail_screen.dart';
 
 class MomentoDetailScreen extends ConsumerStatefulWidget {
-  const MomentoDetailScreen({super.key, required this.momento});
+  const MomentoDetailScreen({super.key, required this.momento, this.onClose});
+
   final Momento momento;
+
+  /// When provided, the screen is rendered in **embedded mode** — used
+  /// by the Phase 3 two-pane Discover layout. The back/close button calls
+  /// this callback instead of `Navigator.pop`, and the swipe-down-to-
+  /// dismiss gesture is disabled (the parent owns the close affordance).
+  final VoidCallback? onClose;
 
   @override
   ConsumerState<MomentoDetailScreen> createState() =>
@@ -56,12 +63,19 @@ class _MomentoDetailScreenState extends ConsumerState<MomentoDetailScreen> {
     final isAdmin = ref.watch(isAdminProvider);
     final showAnalytics = isAdmin || (uid != null && uid == m.organizerId);
 
+    final embedded = widget.onClose != null;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: GestureDetector(
-        onVerticalDragEnd: (details) {
-          if ((details.primaryVelocity ?? 0) > 700) Navigator.pop(context);
-        },
+        // Swipe-down-to-dismiss only in slide-up modal mode. In embedded
+        // mode the parent (right pane) owns the close affordance.
+        onVerticalDragEnd: embedded
+            ? null
+            : (details) {
+                if ((details.primaryVelocity ?? 0) > 700) {
+                  Navigator.pop(context);
+                }
+              },
         behavior: HitTestBehavior.opaque,
         child: Stack(
           children: [
@@ -171,13 +185,20 @@ class _MomentoDetailScreenState extends ConsumerState<MomentoDetailScreen> {
                 ),
               ],
             ),
-            // Floating back button
+            // Floating back / close button. In embedded (two-pane) mode
+            // we anchor it top-right and use a close icon; in slide-up
+            // mode it stays top-left as a back arrow.
             Positioned(
               top: MediaQuery.of(context).padding.top + 8,
-              left: AppSpacing.md,
+              left: embedded ? null : AppSpacing.md,
+              right: embedded ? AppSpacing.md : null,
               child: _CircleIconButton(
-                icon: Icons.arrow_back_rounded,
-                onTap: () => Navigator.pop(context),
+                icon: embedded
+                    ? Icons.close_rounded
+                    : Icons.arrow_back_rounded,
+                onTap: embedded
+                    ? widget.onClose!
+                    : () => Navigator.pop(context),
               ),
             ),
             // Sticky bottom CTA

@@ -56,5 +56,14 @@ export default defineConfig({
         viewport: { width: 1440, height: 900 },
       },
     },
+    {
+      // ≥ Breakpoints.ultrawide (1600) → two-pane Discover layout.
+      // 1920 leaves comfortable room on both sides of the split.
+      name: "chromium-ultrawide",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1920, height: 1080 },
+      },
+    },
   ],
 });

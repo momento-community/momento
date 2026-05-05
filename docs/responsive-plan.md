@@ -1,6 +1,6 @@
 # Responsive design plan
 
-Status: Phase 1 + Phase 2 shipped. Phase 3 deferred.
+Status: Phase 1 + Phase 2 + Phase 3 (Discover two-pane) shipped. The two remaining Phase 3 niceties — MomentoDetail 2-column body and Map split-pane — kept on the back burner for v2 polish.
 
 ## 0. Diagnosis
 

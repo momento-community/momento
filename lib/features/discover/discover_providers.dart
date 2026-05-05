@@ -21,6 +21,22 @@ final allMomentosProvider = Provider<List<Momento>>((ref) {
   return ref.watch(allMomentosStreamProvider).value ?? const [];
 });
 
+/// Selected Momento id for the two-pane (≥ ultrawide) Discover layout.
+/// Null when nothing is selected (the right pane shows an empty state).
+/// Single source of truth so the masonry tile, detail header, and any
+/// future "open in side panel" trigger stay in sync.
+class SelectedMomentoIdNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+  void set(String? id) => state = id;
+  void clear() => state = null;
+}
+
+final selectedMomentoIdProvider =
+    NotifierProvider<SelectedMomentoIdNotifier, String?>(
+  SelectedMomentoIdNotifier.new,
+);
+
 /// Discover feed: applies the shared filter state to the source list.
 final discoverFeedProvider = Provider<List<Momento>>((ref) {
   final all = ref.watch(allMomentosProvider);

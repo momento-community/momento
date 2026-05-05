@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:intl/intl.dart';
 
+import '../../config/breakpoints.dart';
 import '../../config/theme.dart';
 import '../../core/models/momento.dart';
 import '../../core/widgets/momento_card.dart';
@@ -23,43 +24,113 @@ class DiscoverScreen extends ConsumerWidget {
     final feed = ref.watch(discoverFeedProvider);
     final filter = ref.watch(filterStateProvider);
 
+    final twoPane = context.isUltrawide;
+    final feedBody = stream.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation(AppColors.primary),
+        ),
+      ),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Text(
+            'Could not load Momentos.\n$e',
+            textAlign: TextAlign.center,
+            style: AppText.bodySmall.copyWith(color: AppColors.error),
+          ),
+        ),
+      ),
+      data: (_) =>
+          feed.isEmpty ? const _EmptyState() : _MasonryFeed(items: feed),
+    );
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         bottom: false,
-        child: ResponsiveContent(
-          maxWidth: 1080,
-          padding: EdgeInsets.zero,
-          child: Column(
-            children: [
-              _TopBar(filter: filter),
-              Expanded(
-                child: stream.when(
-                  loading: () => const Center(
-                    child: CircularProgressIndicator(
-                      valueColor:
-                          AlwaysStoppedAnimation(AppColors.primary),
+        child: twoPane
+            // Ultra-wide: 50/50 master-detail. Skip the 1080 max-width
+            // cap so both panes get the full available width.
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _TopBar(filter: filter),
+                        Expanded(child: feedBody),
+                      ],
                     ),
                   ),
-                  error: (e, _) => Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.xl),
-                      child: Text(
-                        'Could not load Momentos.\n$e',
-                        textAlign: TextAlign.center,
-                        style: AppText.bodySmall
-                            .copyWith(color: AppColors.error),
-                      ),
-                    ),
-                  ),
-                  data: (_) => feed.isEmpty
-                      ? const _EmptyState()
-                      : _MasonryFeed(items: feed),
+                  const VerticalDivider(
+                      width: 1, color: AppColors.divider),
+                  const Expanded(child: _DetailPane()),
+                ],
+              )
+            : ResponsiveContent(
+                maxWidth: 1080,
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    _TopBar(filter: filter),
+                    Expanded(child: feedBody),
+                  ],
                 ),
               ),
-            ],
+      ),
+    );
+  }
+}
+
+/// Right pane in two-pane mode. Watches the shared selection provider —
+/// when set, renders an embedded `MomentoDetailScreen`; otherwise an
+/// empty placeholder.
+class _DetailPane extends ConsumerWidget {
+  const _DetailPane();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedId = ref.watch(selectedMomentoIdProvider);
+    if (selectedId == null) return const _DetailEmpty();
+    final all = ref.watch(allMomentosProvider);
+    final m = all.where((x) => x.id == selectedId).firstOrNull;
+    if (m == null) return const _DetailEmpty();
+    return MomentoDetailScreen(
+      momento: m,
+      onClose: () => ref.read(selectedMomentoIdProvider.notifier).clear(),
+    );
+  }
+}
+
+class _DetailEmpty extends StatelessWidget {
+  const _DetailEmpty();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.surface,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.local_florist_outlined,
+            size: 56,
+            color: AppColors.primary.withValues(alpha: 0.4),
           ),
-        ),
+          const SizedBox(height: AppSpacing.md),
+          Text('Select a Momento',
+              style: AppText.titleMedium, textAlign: TextAlign.center),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Tap any card on the left to see its details here.',
+            textAlign: TextAlign.center,
+            style: AppText.bodySmall
+                .copyWith(color: AppColors.secondaryText, height: 1.5),
+          ),
+        ],
       ),
     );
   }
@@ -158,14 +229,17 @@ class _TimeSelectorPill extends StatelessWidget {
   }
 }
 
-class _MasonryFeed extends StatelessWidget {
+class _MasonryFeed extends ConsumerWidget {
   const _MasonryFeed({required this.items});
   final List<Momento> items;
 
   @override
-  Widget build(BuildContext context) {
-    // adaptiveCols reads the *constrained* width — Discover sits inside a
-    // 1080-wide column, so this returns 2 / 3 / 4 as the viewport grows.
+  Widget build(BuildContext context, WidgetRef ref) {
+    // adaptiveCols reads the *constrained* width — in single-pane mode
+    // Discover sits inside a 1080-wide column, so this returns 2 / 3 / 4
+    // as the viewport grows. In two-pane mode the masonry runs at the
+    // pane's width (typically 50% of the viewport) so it falls back to 2.
+    final twoPane = context.isUltrawide;
     return LayoutBuilder(
       builder: (context, constraints) {
         return MasonryGridView.count(
@@ -186,9 +260,17 @@ class _MasonryFeed extends StatelessWidget {
             return MomentoCard(
               momento: m,
               imageHeight: h,
-              onTap: () => Navigator.of(context).push(
-                slideUpRoute(MomentoDetailScreen(momento: m)),
-              ),
+              onTap: () {
+                if (twoPane) {
+                  // Two-pane: update shared selection; the right pane
+                  // observes it and re-renders.
+                  ref.read(selectedMomentoIdProvider.notifier).set(m.id);
+                } else {
+                  Navigator.of(context).push(
+                    slideUpRoute(MomentoDetailScreen(momento: m)),
+                  );
+                }
+              },
             );
           },
         );

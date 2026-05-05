@@ -67,7 +67,7 @@ Default `user` on signup. Self-service `user → organisor` from Profile or Crea
 - **Follows** — `/follows/{follower}_{following}` doc, deterministic id so create/delete are idempotent. Follower count via Firestore `count()` aggregate stream. `FollowButton` hides when viewing yourself. Profile shows real `followers` count for the signed-in user; organizer detail shows it for the organizer.
 - **`USE_MOCK_DATA=true`** dart-define bypasses Firestore for offline UI dev + e2e CI. Skips auth gate too.
 - Flutter web semantics enabled in `main.dart` so Playwright can query `<flt-semantics>` aria-labels. Icon-only widgets (e.g. `LikeButton`) wrap themselves in `Semantics(label: …)` so they're queryable + screen-readable.
-- **Responsive layouts** (`docs/responsive-plan.md`). Breakpoints: tablet 720, desktop 1080, wide 1440. Every screen body sits inside a `ResponsiveContent(maxWidth: …)` (480 / 560 / 720 / 1080 by intent). `MainShell` switches between **bottom nav** (< 720) and **NavigationRail** (≥ 720; collapsed 720–1080, extended ≥ 1080). Phase 3 (two-pane on ≥ 1440) deferred.
+- **Responsive layouts** (`docs/responsive-plan.md`). Breakpoints: tablet 720, desktop 1080, wide 1440, ultrawide 1600. Every screen body sits inside a `ResponsiveContent(maxWidth: …)` (480 / 560 / 720 / 1080 by intent). `MainShell` switches between **bottom nav** (< 720) and **NavigationRail** (≥ 720; collapsed 720–1080, extended ≥ 1080). Discover goes **two-pane** at ≥ 1600 — masonry left, embedded `MomentoDetailScreen` right; tapping a card sets `selectedMomentoIdProvider` (Riverpod `Notifier`) instead of pushing a route, so the URL doesn't change. Below 1600 the slide-up modal is unchanged.
 
 ## Brand assets / favicons
 
@@ -142,7 +142,7 @@ Specs live in `e2e/tests/`. CI (`.github/workflows/e2e.yml`) runs them all again
 | `roles` | Plain user sees "Become an organisor" upgrade card; analytics card hidden |
 | `social` | Like-button heart present on cards + detail (substring aria-label match — Tooltip's label is merged into the card group) |
 | `profile` | "Created Momentos" / "Liked" tabs, "Created" / "Liked" / "Followers" stats, freemium card |
-| `responsive` | Mobile shows bottom nav; tablet shows collapsed rail; desktop shows extended rail with labels. Discover masonry has 2 / 2 / ≥3 cols at mobile / tablet / desktop. |
+| `responsive` | Mobile shows bottom nav; tablet shows collapsed rail; desktop shows extended rail with labels. Discover masonry has 2 / 2 / ≥3 cols at mobile / tablet / desktop. At ultrawide (≥ 1600), Discover goes two-pane: empty placeholder on the right by default, tapping a card populates the detail there in-place (no URL change), masonry stays at 2 cols in the narrower left pane. |
 
 **Selector rules of thumb:**
 - Visible Flutter text → `flutterText(page, "…")` (substring aria-label OR `getByText` fallback).
