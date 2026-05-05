@@ -81,3 +81,15 @@ jobs:
             --project momento-b23c0 \
             --non-interactive \
             --debug 2>&1 | tail -120
+
+      # Slack ping on failure. No-op when CI_FAILURE_WEBHOOK_URL isn't set.
+      # Mirrors the step in e2e.yml — see that file for setup notes.
+      - name: Notify webhook on failure
+        if: failure() && github.event_name != 'pull_request' && env.WEBHOOK_URL != ''
+        env:
+          WEBHOOK_URL: ${{ secrets.CI_FAILURE_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -sS -X POST -H "Content-Type: application/json" \
+            -d "{\"text\":\"❌ Deploy Hosting failed on \`${{ github.ref_name }}\` — <${RUN_URL}|view run>\nCommit: \`${{ github.sha }}\` by ${{ github.actor }}\"}" \
+            "$WEBHOOK_URL" || echo "Webhook POST failed; not blocking the run."

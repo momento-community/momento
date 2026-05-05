@@ -1,0 +1,44 @@
+name: Webhook test
+
+# Manual one-off ping to verify the CI failure webhook is reachable and
+# that messages land in Slack/Discord. Run from:
+#   GitHub → Actions → Webhook test → Run workflow → main → Run
+#
+# - Reads `CI_FAILURE_WEBHOOK_URL` (same secret used by every workflow's
+#   on-failure notify step).
+# - Sends a single test payload.
+# - Surfaces a clear ::error:: when the secret is missing OR the POST
+#   returns a non-2xx status, so a Run that says "green" actually means
+#   "Slack got the message."
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Send test ping
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Send webhook
+        env:
+          WEBHOOK_URL: ${{ secrets.CI_FAILURE_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "::error::CI_FAILURE_WEBHOOK_URL secret is not set."
+            exit 1
+          fi
+          payload=$(cat <<EOF
+          {"text":"✅ Webhook test from Momentō CI — <${RUN_URL}|view run>\nTriggered by ${{ github.actor }} on \`${{ github.ref_name }}\`."}
+          EOF
+          )
+          # -f makes curl exit non-zero on >=400 statuses; -sS keeps it
+          # quiet on success but prints errors. Combined: the step turns
+          # red iff Slack rejected the payload or the URL is wrong.
+          curl -fsS -X POST -H "Content-Type: application/json" \
+            -d "$payload" "$WEBHOOK_URL"
+          echo "Webhook POST succeeded."

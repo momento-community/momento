@@ -37,3 +37,15 @@ jobs:
 
       - name: Run tests
         run: flutter test --reporter expanded
+
+      # Slack ping on failure. No-op when CI_FAILURE_WEBHOOK_URL isn't set.
+      # Mirrors the step in e2e.yml.
+      - name: Notify webhook on failure
+        if: failure() && github.event_name != 'pull_request' && env.WEBHOOK_URL != ''
+        env:
+          WEBHOOK_URL: ${{ secrets.CI_FAILURE_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -sS -X POST -H "Content-Type: application/json" \
+            -d "{\"text\":\"❌ Flutter test failed on \`${{ github.ref_name }}\` — <${RUN_URL}|view run>\nCommit: \`${{ github.sha }}\` by ${{ github.actor }}\"}" \
+            "$WEBHOOK_URL" || echo "Webhook POST failed; not blocking the run."
