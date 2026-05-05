@@ -13,6 +13,7 @@ import '../features/create/create_screen.dart';
 import '../features/discover/discover_screen.dart';
 import '../features/main_shell/main_shell.dart';
 import '../features/map/map_screen.dart';
+import '../features/momento_detail/momento_detail_route.dart';
 import '../features/my_moments/my_moments_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/profile/profile_screen.dart';
@@ -53,6 +54,28 @@ final routerProvider = Provider<GoRouter>((ref) {
       // /admin lives outside the bottom-nav shell — it's a full-screen
       // operator surface. Redirect above gates non-admins.
       GoRoute(path: '/admin', builder: (_, __) => const AdminScreen()),
+      // Deep link / share target. Lives outside the bottom-nav shell —
+      // it's a focused full-screen view of a single Momento, the URL
+      // people copy-paste. In-app navigation from Discover / Map keeps
+      // its existing slide-up modal (single-pane) and embedded right
+      // pane (ultra-wide) so this route doesn't disturb either flow.
+      GoRoute(
+        path: '/momento/:id',
+        builder: (_, state) =>
+            MomentoDetailRoute(id: state.pathParameters['id']!),
+      ),
+      // Public profile / organisor page. `/u/{uid}` is the canonical
+      // shareable URL for any user. The screen reads the live
+      // `users/{uid}` doc — so name/avatar are always fresh, even when
+      // the organisor changed them after a Momento was created. When
+      // the path-id matches the signed-in uid, the screen still renders
+      // self mode (inline edits, freemium card, logout) so the URL is
+      // copy-paste safe for the user themselves too.
+      GoRoute(
+        path: '/u/:id',
+        builder: (_, state) =>
+            ProfileScreen(userId: state.pathParameters['id']!),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (_, __, shell) => MainShell(navigationShell: shell),
         branches: [

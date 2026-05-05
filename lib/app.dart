@@ -29,6 +29,23 @@ class MomentoApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       routerConfig: router,
+      scrollBehavior: const _NoScrollbarBehavior(),
     );
   }
+}
+
+/// App-wide ScrollBehavior that hides the platform scrollbar everywhere.
+/// Flutter web/desktop attach a Material scrollbar to every Scrollable by
+/// default — we want the Pinterest-style edge-to-edge feed with no bar.
+/// Touch input keeps scroll-by-drag; mouse wheel still works.
+class _NoScrollbarBehavior extends MaterialScrollBehavior {
+  const _NoScrollbarBehavior();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) =>
+      child;
 }

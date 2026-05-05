@@ -78,9 +78,10 @@ Selectors live in `e2e/selectors.ts` so refactors only touch one file.
 ### 7. My Moments + Profile (`account.spec.ts`)
 - My Moments default tab is Organised → list renders
 - Switch to Liked → masonry renders
-- Profile shows display name derived from email
+- Profile shows display name from the `users/{uid}` doc (with email-derived fallback)
 - Freemium card progress matches `freemium_used / 5`
-- Edit Profile button visible
+- Inline edits on display_name / city / bio land in Firestore
+- Avatar upload writes to Storage + patches `avatar_url`
 - Logout link triggers sign-out
 
 ### 7b. Roles (`roles.spec.ts`) — mock-data only

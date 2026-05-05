@@ -37,7 +37,6 @@ export const discover = {
 
 export const profile = {
   logout: "Logout",
-  editProfile: "Edit Profile",
   freemiumHeading: "Free Momentos",
   seedDevButton: "Seed dev Momentos",
   // Tab + stat labels — the rename from "My Momentos" / "Hosted" → "Created"

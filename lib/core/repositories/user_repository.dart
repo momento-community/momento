@@ -34,12 +34,6 @@ class UserRepository {
     });
   }
 
-  /// Self-service `user → organisor` upgrade. The Firestore rule allows
-  /// exactly this transition; any other role change requires an admin.
-  Future<void> upgradeToOrganisor(String uid) {
-    return _users.doc(uid).update({'role': 'organisor'});
-  }
-
   /// Admin-only: flip a user's role. Rule check (`isAdmin()`) on the
   /// server prevents misuse; this method just constructs the write.
   Future<void> setRole(String uid, String role) {
@@ -70,8 +64,43 @@ class UserRepository {
     return _users.doc(uid).get();
   }
 
-  Future<void> updateProfile(String uid, Map<String, Object?> patch) {
-    return _users.doc(uid).update(patch);
+  /// Patches `users/{uid}` and — when `display_name` or `avatar_url` change —
+  /// fans the new value out to every Momento where `organizer_id == uid`,
+  /// keeping the denormalised `organizer_name` / `organizer_avatar_url`
+  /// fields in cards + detail in sync with the live profile.
+  ///
+  /// The fan-out is a single `WriteBatch`, chunked at 450 ops so we stay
+  /// well under Firestore's 500-write batch limit even if a power user
+  /// hosts hundreds of Momentos.
+  Future<void> updateProfile(String uid, Map<String, Object?> patch) async {
+    await _users.doc(uid).update(patch);
+
+    // Only avatar + display_name are denormalised onto Momento docs. If the
+    // patch only changed bio / city / role / etc., skip the fan-out work.
+    final momentoPatch = <String, Object?>{};
+    if (patch.containsKey('avatar_url')) {
+      momentoPatch['organizer_avatar_url'] = patch['avatar_url'];
+    }
+    if (patch.containsKey('display_name')) {
+      momentoPatch['organizer_name'] = patch['display_name'];
+    }
+    if (momentoPatch.isEmpty) return;
+
+    final query = await _firestore
+        .collection('momentos')
+        .where('organizer_id', isEqualTo: uid)
+        .get();
+    if (query.docs.isEmpty) return;
+
+    const chunkSize = 450;
+    for (var i = 0; i < query.docs.length; i += chunkSize) {
+      final batch = _firestore.batch();
+      final end = (i + chunkSize).clamp(0, query.docs.length);
+      for (final doc in query.docs.sublist(i, end)) {
+        batch.update(doc.reference, momentoPatch);
+      }
+      await batch.commit();
+    }
   }
 
   static String _emailToName(String? email) {

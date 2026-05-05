@@ -195,6 +195,39 @@ class MomentoRepository {
     });
   }
 
+  /// Live single-doc stream. Used by the detail screen so inline edits land
+  /// on screen immediately (and reflect concurrent edits by another admin).
+  Stream<Momento?> watchById(String id) {
+    return _col.doc(id).snapshots().map((snap) {
+      if (!snap.exists) return null;
+      return Momento.fromFirestore(snap);
+    });
+  }
+
+  /// Owner-or-admin partial update. The rule allows the organizer to mutate
+  /// any field except `organizer_id` and `created_at`, and admins to mutate
+  /// anything; this method is permissive — callers pass the keys they want
+  /// to change. Pass [coverPhoto] to upload a new hero image; it replaces
+  /// the entire `images` array (we only ever surface the first one).
+  Future<void> updateMomento({
+    required String id,
+    required String organizerUid,
+    Map<String, Object?> fields = const {},
+    XFile? coverPhoto,
+  }) async {
+    final patch = Map<String, Object?>.from(fields);
+    if (coverPhoto != null) {
+      final url = await _storage.uploadMomentoImage(
+        organizerUid: organizerUid,
+        momentoId: id,
+        file: coverPhoto,
+      );
+      patch['images'] = <String>[url];
+    }
+    if (patch.isEmpty) return;
+    await _col.doc(id).update(patch);
+  }
+
   /// Admin-only: every momento in the project, newest first. The rules
   /// already let public reads on this collection, so this is technically
   /// available to anyone, but only the admin panel calls it.

@@ -56,6 +56,11 @@ service cloud.firestore {
         && request.resource.data.created_at == request.time;
 
       // Self-update: banned users can't touch their own doc.
+      //
+      // Role transitions: only admins can promote `user → organisor`
+      // (gated by the approval flow on `organisor_requests/{uid}`). Self
+      // CAN voluntarily step down `organisor → user` ("stop hosting") and
+      // CAN keep their role unchanged across any other field edit.
       allow update: if isOwner(uid)
         && !isBanned()
         && request.resource.data.is_premium == resource.data.is_premium
@@ -65,8 +70,8 @@ service cloud.firestore {
         && (
           request.resource.data.get('role', 'user') == resource.data.get('role', 'user')
           || (
-            resource.data.get('role', 'user') == 'user'
-            && request.resource.data.role == 'organisor'
+            resource.data.get('role', 'user') == 'organisor'
+            && request.resource.data.role == 'user'
           )
         );
 
@@ -132,6 +137,42 @@ service cloud.firestore {
 
       allow delete: if (isOwner(resource.data.organizer_id) && !isBanned())
         || isAdmin();
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // organisor_requests/{uid} — admin-curated promotion to organisor.
+    //
+    // Doc id is always the requesting user's uid, so re-requesting after
+    // a rejection just rewrites the same doc (idempotent). The rule
+    // deliberately does NOT atomic-flip `users/{uid}.role` on approve —
+    // the admin client batches the two writes together. This keeps each
+    // collection's rule self-contained.
+    // ────────────────────────────────────────────────────────────────────
+    match /organisor_requests/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+
+      // Initial submission — allowed only when the user is currently a
+      // plain `user` (not already organisor or admin) and the doc lands
+      // in pending state.
+      allow create: if isOwner(uid)
+        && !isBanned()
+        && userDoc().data.get('role', 'user') == 'user'
+        && request.resource.data.status == 'pending'
+        && request.resource.data.requested_at == request.time
+        && request.resource.data.user_email is string
+        && request.resource.data.user_display_name is string;
+
+      // Re-submission after rejection — owner can flip rejected → pending
+      // (and ONLY that). Status forward to approved/rejected stays
+      // admin-only.
+      allow update: if isOwner(uid)
+        && !isBanned()
+        && resource.data.status == 'rejected'
+        && request.resource.data.status == 'pending'
+        && request.resource.data.requested_at == request.time;
+
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // ────────────────────────────────────────────────────────────────────

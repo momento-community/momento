@@ -12,6 +12,7 @@ import '../../config/theme.dart';
 import '../../core/firebase/providers.dart';
 import '../../core/models/momento_category.dart';
 import '../../core/repositories/momento_repository.dart';
+import '../../core/repositories/organisor_requests_repository.dart';
 import '../../core/widgets/category_chip.dart';
 import '../../core/widgets/momento_button.dart';
 import '../../core/widgets/responsive_content.dart';
@@ -371,6 +372,37 @@ class _BecomeOrganisorPanelState
 
   @override
   Widget build(BuildContext context) {
+    // Three sub-states (matches the Profile role card):
+    //   - no request   → CTA "Request to host"
+    //   - pending      → "Application under review", no CTA
+    //   - rejected     → reason + "Try again"
+    // Once approved, role flips to organisor and CreateScreen renders the
+    // form instead of this panel — so we don't render an approved branch.
+    final myReq = ref.watch(myOrganisorRequestProvider).value;
+    final isPending =
+        myReq?.status == OrganisorRequestStatus.pending;
+    final isRejected =
+        myReq?.status == OrganisorRequestStatus.rejected;
+
+    final title = isPending
+        ? 'Application under review'
+        : isRejected
+            ? 'Application not approved'
+            : 'Want to host?';
+    final body = isPending
+        ? "An admin will review and let you know. You'll see Create unlock here automatically once you're approved."
+        : isRejected
+            ? ((myReq?.decidedReason?.trim().isNotEmpty ?? false)
+                ? 'Reason: ${myReq!.decidedReason}\n\nFeel free to try again with a stronger application.'
+                : "We didn't approve this one. Feel free to try again.")
+            : 'To create Momentos you need an organisor account. Send a request and an admin will review it.';
+    final accent = isRejected ? AppColors.error : AppColors.primary;
+    final iconData = isPending
+        ? Icons.hourglass_empty_rounded
+        : isRejected
+            ? Icons.cancel_outlined
+            : Icons.local_florist_outlined;
+
     // 560 keeps the green CTA from stretching ear-to-ear on desktop.
     return ResponsiveContent(
       maxWidth: 560,
@@ -382,37 +414,42 @@ class _BecomeOrganisorPanelState
               width: 96,
               height: 96,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.10),
+                color: accent.withValues(alpha: 0.10),
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.primary, width: 1),
+                border: Border.all(color: accent, width: 1),
               ),
               alignment: Alignment.center,
-              child: Icon(Icons.local_florist_outlined,
-                  size: 44, color: AppColors.primary),
+              child: Icon(iconData, size: 44, color: accent),
             ),
             const SizedBox(height: AppSpacing.lg),
-            Text('Want to host?',
+            Text(title,
                 style: AppText.headlineSmall, textAlign: TextAlign.center),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'To create Momentos you need an organisor account. '
-              "It's free, it's instant, and you stay in full control.",
+              body,
               textAlign: TextAlign.center,
               style: AppText.bodyMedium
                   .copyWith(color: AppColors.secondaryText, height: 1.5),
             ),
             const SizedBox(height: AppSpacing.xl),
-            MomentoButton(
-              label: _busy ? 'Setting you up…' : 'Become an organisor',
-              icon: Icons.add_rounded,
-              variant: MomentoButtonVariant.primary,
-              size: MomentoButtonSize.large,
-              fullWidth: true,
-              onPressed: _busy ? null : _upgrade,
-            ),
+            if (!isPending)
+              MomentoButton(
+                label: _busy
+                    ? 'Sending…'
+                    : isRejected
+                        ? 'Try again'
+                        : 'Request to host',
+                icon: Icons.send_outlined,
+                variant: MomentoButtonVariant.primary,
+                size: MomentoButtonSize.large,
+                fullWidth: true,
+                onPressed: _busy ? null : _submitRequest,
+              ),
             const SizedBox(height: AppSpacing.md),
             Text(
-              'You can stop hosting at any time from your Profile.',
+              isPending
+                  ? "We're not far — keep an eye on this screen."
+                  : 'You can stop hosting at any time from your Profile.',
               textAlign: TextAlign.center,
               style: AppText.labelSmall
                   .copyWith(color: AppColors.secondaryText),
@@ -422,20 +459,32 @@ class _BecomeOrganisorPanelState
     );
   }
 
-  Future<void> _upgrade() async {
+  Future<void> _submitRequest() async {
     final user = ref.read(authStateChangesProvider).value;
     if (user == null) return;
+    final userDocData =
+        ref.read(currentUserDocProvider).value?.data() ?? const {};
     setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
     try {
-      await ref.read(userRepositoryProvider).upgradeToOrganisor(user.uid);
-      // The provider stream picks up the role change and re-renders the
-      // CreateScreen into the form automatically.
+      await ref.read(organisorRequestsRepositoryProvider).submit(
+            uid: user.uid,
+            userEmail: user.email ?? '',
+            userDisplayName:
+                (userDocData['display_name'] as String?)?.trim().isNotEmpty ==
+                        true
+                    ? (userDocData['display_name'] as String).trim()
+                    : (user.displayName ??
+                        user.email?.split('@').first ??
+                        'Member'),
+            userAvatarUrl: (userDocData['avatar_url'] as String?) ??
+                user.photoURL,
+          );
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Request sent — an admin will review.')),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upgrade failed: $e')),
-        );
-      }
+      messenger.showSnackBar(SnackBar(content: Text('Request failed: $e')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

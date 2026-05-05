@@ -165,6 +165,45 @@ void main() {
     });
   });
 
+  group('updateMomento', () {
+    test('partial patch updates only the supplied fields', () async {
+      await seedMomento(id: 'm1', organizerId: 'org1');
+
+      await repo.updateMomento(
+        id: 'm1',
+        organizerUid: 'org1',
+        fields: {'title': 'New title', 'description': 'New body'},
+      );
+
+      final doc = await firestore.collection('momentos').doc('m1').get();
+      expect(doc.data()!['title'], equals('New title'));
+      expect(doc.data()!['description'], equals('New body'));
+      // Untouched fields stay untouched.
+      expect(doc.data()!['organizer_id'], equals('org1'));
+      expect(doc.data()!['category'], equals('art'));
+    });
+
+    test('empty patch + no photo is a no-op', () async {
+      await seedMomento(id: 'm1', organizerId: 'org1');
+      await expectLater(
+        repo.updateMomento(id: 'm1', organizerUid: 'org1'),
+        completes,
+      );
+    });
+  });
+
+  group('watchById', () {
+    test('emits the live doc and null when missing', () async {
+      await seedMomento(id: 'm1', organizerId: 'org1');
+      final m = await repo.watchById('m1').first;
+      expect(m, isNotNull);
+      expect(m!.id, equals('m1'));
+
+      final missing = await repo.watchById('does-not-exist').first;
+      expect(missing, isNull);
+    });
+  });
+
   group('watchLikedBy', () {
     test('returns active Momentos containing the uid in liked_by',
         () async {

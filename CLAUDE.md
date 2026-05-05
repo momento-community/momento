@@ -28,20 +28,36 @@ Flutter 3.38+ · Riverpod 3 (`Notifier` API) · `go_router` · Firebase Auth/Fir
 - Always render **Momentō** with the macron `Ō` (U+014C) literal — code, copy, UI. Events are always **Momentos** (no "events", no "flares").
 - Lucide / Material outlined icons only. **No emoji. No gradients.**
 - Cards: 16px radius, 1px `divider` border, `sm` shadow. Buttons: white-bg/charcoal-border default; max one filled `primary` per screen. Inputs: `surface` bg, 12px radius.
+- **No visible scrollbars** — `MaterialApp.router` uses a custom `_NoScrollbarBehavior` in [`lib/app.dart`](lib/app.dart) that overrides `buildScrollbar` to return the child as-is. Scrollables still scroll (touch + wheel) but never paint a track. If you re-introduce scrollbars later (e.g. for desktop power users), do it on the specific Scrollable, not globally.
 - Theme tokens in [`lib/config/theme.dart`](lib/config/theme.dart) — **never** inline hex.
 - Test on iPhone 14 Pro (393×852 in Playwright). Web responsive: adaptive 2 / 3 / 4 cols at tablet (≥720) / desktop (≥1080) / wide (≥1440); two-pane Discover at ultrawide (≥1600). Full plan in [`docs/responsive-plan.md`](docs/responsive-plan.md).
 
 ## Key files
 
-- `lib/config/{env,theme,router,breakpoints}.dart` — config, design tokens, go_router with role + auth redirects, responsive breakpoints
-- `lib/core/firebase/providers.dart` — Riverpod providers + role/freemium derivations
-- `lib/core/repositories/` — `MomentoRepository`, `UserRepository`, `StorageRepository`, `AuditLogRepository`, `FollowRepository`. All Firestore writes go through here.
+- `lib/config/{env,theme,router,breakpoints}.dart` — config, design tokens, go_router with role + auth redirects + `/momento/:id` + `/u/:id` deep links, responsive breakpoints
+- `lib/core/firebase/providers.dart` — Riverpod providers + role/freemium derivations + `momentoByIdProvider` + `userDocByIdProvider` + `canEditMomento` helper
+- `lib/core/repositories/` — `MomentoRepository` (`updateMomento`, `watchById`), `UserRepository` (`updateProfile` with denormalised fan-out), `StorageRepository`, `AuditLogRepository`, `FollowRepository`, `OrganisorRequestsRepository` (submit / approve / reject for the organisor approval flow). All Firestore writes go through here.
+- `lib/features/momento_detail/{momento_detail_screen,momento_detail_route}.dart` — detail UI (with inline-edit affordances) + deep-link wrapper
+- `lib/features/profile/profile_screen.dart` — unified profile (self via `/profile`, any user via `/u/:id`)
+- `lib/features/organizer/organizer_detail_screen.dart` — only the `Momento.pushOrganizerDetail` extension; the old standalone screen is gone
 - `lib/core/widgets/{momento_logo,momento_button,slide_up_route,like_button,follow_button,responsive_content}.dart`
 - `lib/core/seeds/demo_seed.dart` — admin-gated demo data flow
 - `lib/shared/filter_state.dart` — shared filter state for Discover + Map
 - `firestore.rules` · `firestore.indexes.json` · `storage.rules` · `storage.cors.json`
 - `docs/{design-export,roles-plan,responsive-plan}.md`
 - `.github/workflows/{deploy-hosting,deploy-rules,e2e}.yml`
+
+## Routes
+
+| Route | Shell? | Notes |
+|---|---|---|
+| `/splash`, `/onboarding`, `/auth` | no | gate |
+| `/discover`, `/map`, `/my-moments`, `/create`, `/profile` | yes | bottom-nav / NavigationRail tabs |
+| **`/u/:id`** | no | any user's profile — canonical share URL |
+| **`/momento/:id`** | no | any momento detail — canonical share URL |
+| `/admin` | no | admin-only (redirect to `/discover` for non-admins) |
+
+In-app navigation uses these URL routes wherever an entity has an id (organizer cards push `/u/:id`, momento Share copies `<origin>/#/momento/:id`). The two-pane Discover layout is the one intentional exception — it keeps the URL on `/discover` and renders the selected momento in-place via `selectedMomentoIdProvider`. Tabs (`/discover` etc.) carry no id since they're a feed, not an entity.
 
 ## User roles
 
@@ -55,15 +71,22 @@ Default `user` on signup. Self-service `user → organisor` from Profile or Crea
 
 **Bootstrap admin:** Firebase Console → Firestore → `users/{uid}` → set `role` = `"admin"`. Full plan: [`docs/roles-plan.md`](docs/roles-plan.md).
 
-**Admin panel** (`/admin`, four tabs): **Momentos** (delete, audited) · **Users** (role dropdown + ban toggle, both audited) · **Audit log** (append-only) · **Stats**.
+**Becoming an organisor — admin-curated:** plain users do NOT self-promote. Profile / Create show a "Request to host" CTA → writes `organisor_requests/{uid}` with `status: pending`. Admin reviews via the Admin panel's **Requests** tab and clicks Approve (atomic batch: `request.status = approved` + `users/{uid}.role = organisor`) or Reject (with optional reason shown to the applicant). Doc id == requesting user's uid, so re-applying after rejection just rewrites the same doc back to pending. Firestore rule for `users/{uid}` only allows the `organisor → user` self-transition (stop hosting); `user → organisor` is admin-only.
 
-**Audit log** lives in `audit_log/{id}` (append-only, admin-read-only). Action codes: `momento.delete`, `user.role_change`, `user.ban`, `user.unban`. Schema in [`audit_log_repository.dart`](lib/core/repositories/audit_log_repository.dart).
+**Admin panel** (`/admin`, five tabs): **Momentos** (delete, audited) · **Users** (role dropdown + ban toggle, both audited) · **Requests** (Approve / Reject organisor applications, audited) · **Audit log** (append-only) · **Stats**.
+
+**Audit log** lives in `audit_log/{id}` (append-only, admin-read-only). Action codes: `momento.delete`, `momento.edit`, `user.role_change`, `user.ban`, `user.unban`, `organisor_request.approve`, `organisor_request.reject`. Schema in [`audit_log_repository.dart`](lib/core/repositories/audit_log_repository.dart). Owner self-edits/deletes are NOT logged — only admin actions on someone else's record.
 
 ## Architecture decisions
 
 - **No Cloud Functions in v1.** Race window for create-conflicts is tiny; rules + transactions cover ownership/freemium. Re-add as a callable if duplicates surface.
 - `autoExpire` replaced by `where('end_datetime', '>', now())`. `onMomentoLikeChange` replaced by transaction-bumped `like_count` inside `toggleLike`.
 - **Likes** — heart on every card (top-right overlay) + detail screen. State is `momento.likedBy.contains(uid)`; toggle is a transaction on the momento doc (`liked_by` arrayUnion/Remove + `like_count` increment). Optimistic UI in `LikeButton` for instant feedback.
+- **Inline edit (Momento)** — owner + admin (gated by `canEditMomento` in [`providers.dart`](lib/core/firebase/providers.dart)) get pencil affordances next to title/description/dates/location and a chip for category, plus an "Edit photo" pill on the hero. Edits land via `MomentoRepository.updateMomento` (partial patch + optional Storage re-upload). The detail screen watches `momentoByIdProvider(id)` so writes reflect immediately. Admin edits on someone else's Momento append a `momento.edit` audit log entry; owner self-edits don't.
+- **Inline edit (Profile)** — display_name / city / bio are tap-to-edit pencils on Profile; avatar is tap-to-upload (camera badge bottom-right of the ring). Display reads from `users/{uid}` via `currentUserDocProvider` (Firestore is the source of truth — Auth fields are only fallbacks for the brief window before `ensureUserDoc` lands the doc). Avatar bytes go to `users/{uid}/avatar.jpg` via `StorageRepository.uploadAvatar`, then the URL is patched into `avatar_url`. The Firestore rule for `users/{uid}` already allows partial updates that don't touch `is_premium` / `is_banned` / `role` — no rule changes needed.
+- **Profile fan-out** — `UserRepository.updateProfile` watches for `display_name` / `avatar_url` in the patch and, when present, batch-updates `organizer_name` / `organizer_avatar_url` on every Momento where `organizer_id == uid`. Single batched `WriteBatch` chunked at 450 ops to stay under Firestore's 500-write batch limit. Bio / city / role / freemium patches skip the fan-out (the denormalised fields aren't affected). Without this, edits to your name or photo would only show on **new** Momentos — old ones would keep displaying the snapshot baked in at create time. Tested in [`test/repositories/user_repository_test.dart`](test/repositories/user_repository_test.dart).
+- **Unified profile (`/profile` + `/u/:id`)** — one `ProfileScreen(userId)` widget powers both the bottom-nav tab (self) and the deep-link route (any user). `userId == null` or `userId == auth.uid` → self mode (inline edits, role card, freemium, dev seed, logout). Other uid → `_OtherProfileBody` (read-only header + Follow + Message + their active Momentos). Reads the live `users/{uid}` doc via `userDocByIdProvider` — falls back to denormalised fields on a hosted Momento when the doc errors (mock-data builds, transient blips, deleted accounts) so the screen always renders something useful. The old standalone `OrganizerDetailScreen` is gone; the `Momento.pushOrganizerDetail` extension is now a thin wrapper that does `context.push('/u/$organizerId')`, so every organizer-card tap puts the user's id in the URL.
+- **Deep link `/momento/:id`** — outside the bottom-nav shell, robust to bad ids (loading + not-found state). Used as the **share target**: detail-screen Share / "Copy link" copies `<origin>/#/momento/{id}` to the clipboard (origin mirrors `Uri.base` on web, hardcoded to `https://momento.community` off-web). In-app two-pane Discover keeps its in-place selection (no URL change) by design — the deep link is the *incoming* sharing surface, not the outgoing in-app nav.
 - **Follows** — `/follows/{follower}_{following}` doc, deterministic id so create/delete are idempotent. Follower count via Firestore `count()` aggregate stream. `FollowButton` hides when viewing yourself. Profile shows real `followers` count for the signed-in user; organizer detail shows it for the organizer.
 - **`USE_MOCK_DATA=true`** dart-define bypasses Firestore for offline UI dev + e2e CI. Skips auth gate too.
 - Flutter web semantics enabled in `main.dart` so Playwright can query `<flt-semantics>` aria-labels. Icon-only widgets (e.g. `LikeButton`) wrap themselves in `Semantics(label: …)` so they're queryable + screen-readable.

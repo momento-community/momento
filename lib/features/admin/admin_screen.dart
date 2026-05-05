@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../../config/theme.dart';
 import '../../core/firebase/providers.dart';
 import '../../core/models/momento.dart';
+import '../../core/repositories/organisor_requests_repository.dart';
 import '../../core/widgets/momento_button.dart';
 import '../../core/widgets/responsive_content.dart';
 import '../../core/widgets/momento_logo.dart';
@@ -48,6 +49,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                     labels: const [
                       'Momentos',
                       'Users',
+                      'Requests',
                       'Audit log',
                       'Stats',
                     ],
@@ -62,7 +64,8 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
               child: switch (_tab) {
                 0 => const _AllMomentosTab(),
                 1 => const _AllUsersTab(),
-                2 => const _AuditLogTab(),
+                2 => const _RequestsTab(),
+                3 => const _AuditLogTab(),
                 _ => const _StatsTab(),
               },
             ),
@@ -930,5 +933,232 @@ class _EmptyState extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _RequestsTab extends ConsumerWidget {
+  const _RequestsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncReqs = ref.watch(pendingOrganisorRequestsProvider);
+    return asyncReqs.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation(AppColors.primary),
+        ),
+      ),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Text('Could not load requests.\n$e',
+              textAlign: TextAlign.center,
+              style: AppText.bodySmall.copyWith(color: AppColors.error)),
+        ),
+      ),
+      data: (reqs) {
+        if (reqs.isEmpty) {
+          return const _EmptyState(
+            icon: Icons.mark_email_read_outlined,
+            text: 'No pending requests right now.',
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.xl,
+          ),
+          itemCount: reqs.length,
+          separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+          itemBuilder: (_, i) => _RequestRow(req: reqs[i]),
+        );
+      },
+    );
+  }
+}
+
+class _RequestRow extends ConsumerStatefulWidget {
+  const _RequestRow({required this.req});
+  final OrganisorRequest req;
+
+  @override
+  ConsumerState<_RequestRow> createState() => _RequestRowState();
+}
+
+class _RequestRowState extends ConsumerState<_RequestRow> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.req;
+    final ageDays = DateTime.now().difference(r.requestedAt).inDays;
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        border: Border.all(color: AppColors.divider),
+      ),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      child: Row(
+        children: [
+          ClipOval(
+            child: (r.userAvatarUrl == null || r.userAvatarUrl!.isEmpty)
+                ? Container(
+                    width: 40,
+                    height: 40,
+                    color: AppColors.surface,
+                    alignment: Alignment.center,
+                    child: Icon(Icons.person_outline_rounded,
+                        color: AppColors.secondaryText),
+                  )
+                : CachedNetworkImage(
+                    imageUrl: r.userAvatarUrl!,
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.cover,
+                    placeholder: (_, _) =>
+                        Container(color: AppColors.surface),
+                    errorWidget: (_, _, _) =>
+                        Container(color: AppColors.surface),
+                  ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(r.userDisplayName, style: AppText.titleSmall),
+                const SizedBox(height: 2),
+                Text(
+                  r.userEmail,
+                  style: AppText.labelSmall
+                      .copyWith(color: AppColors.secondaryText),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  ageDays == 0
+                      ? 'Submitted today'
+                      : 'Submitted $ageDays day${ageDays == 1 ? '' : 's'} ago',
+                  style: AppText.labelSmall
+                      .copyWith(color: AppColors.secondaryText),
+                ),
+              ],
+            ),
+          ),
+          MomentoButton(
+            label: _busy ? '…' : 'Reject',
+            size: MomentoButtonSize.small,
+            onPressed: _busy ? null : _reject,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          MomentoButton(
+            label: _busy ? '…' : 'Approve',
+            variant: MomentoButtonVariant.primary,
+            size: MomentoButtonSize.small,
+            onPressed: _busy ? null : _approve,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _approve() async {
+    final actor = ref.read(authStateChangesProvider).value;
+    if (actor == null) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      // Audit log first so a failed approve still leaves a trail.
+      await ref.read(auditLogRepositoryProvider).log(
+            actor: actor,
+            action: 'organisor_request.approve',
+            targetType: 'user',
+            targetId: widget.req.uid,
+            before: {'role': 'user'},
+            after: {'role': 'organisor'},
+          );
+      await ref.read(organisorRequestsRepositoryProvider).approve(
+            uid: widget.req.uid,
+            adminUid: actor.uid,
+          );
+      messenger.showSnackBar(
+        SnackBar(content: Text('Approved ${widget.req.userDisplayName}')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Approve failed: $e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _reject() async {
+    final actor = ref.read(authStateChangesProvider).value;
+    if (actor == null) return;
+    final reason = await _promptReason();
+    if (!mounted) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(auditLogRepositoryProvider).log(
+            actor: actor,
+            action: 'organisor_request.reject',
+            targetType: 'user',
+            targetId: widget.req.uid,
+            after: {'reason': ?reason},
+          );
+      await ref.read(organisorRequestsRepositoryProvider).reject(
+            uid: widget.req.uid,
+            adminUid: actor.uid,
+            reason: reason,
+          );
+      messenger.showSnackBar(
+        SnackBar(content: Text('Rejected ${widget.req.userDisplayName}')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Reject failed: $e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<String?> _promptReason() async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.background,
+        title: Text('Reject request', style: AppText.titleMedium),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          maxLength: 200,
+          decoration: const InputDecoration(
+            hintText: 'Optional — shown to the applicant.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: Text('Cancel',
+                style: AppText.labelLarge
+                    .copyWith(color: AppColors.secondaryText)),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(ctx, controller.text.trim()),
+            child: Text('Reject',
+                style: AppText.labelLarge.copyWith(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (reason == null) return null;
+    return reason.isEmpty ? null : reason;
   }
 }
