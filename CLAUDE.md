@@ -99,7 +99,8 @@ Default `user` on signup. `user → organisor` is **admin-curated** via the Requ
 - **App Check (May 2026 — client wired, enforcement deferred)**: [`main.dart`](lib/main.dart) calls `FirebaseAppCheck.instance.activate` on every platform — web uses reCAPTCHA v3 (skipped when `--dart-define=APP_CHECK_RECAPTCHA_SITE_KEY` is empty), Android uses Play Integrity in release / debug provider in dev, iOS uses DeviceCheck in release / debug provider in dev. The CI deploy passes the site-key dart-define from the `APP_CHECK_RECAPTCHA_SITE_KEY` repo secret. Tokens are advisory until "Enforce" is flipped per-product in Firebase Console (Firestore + Storage). **Don't enforce until a release build with the site key has been live for ≥ 24 h with no spike in token-validation errors** — Enforce-without-working-token = every read/write 403s.
 - **Hosting security headers** (`firebase.json` → `hosting.headers["**"]`): `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Content-Type-Options: nosniff`, locked-down `Permissions-Policy` (camera/mic/payment/etc all denied; geolocation kept self-only for the map). `Content-Security-Policy-Report-Only` is shipped first — verify the browser console for a few days, then promote to enforced `Content-Security-Policy`. The CSP allows the Firebase SDKs, Google Maps, reCAPTCHA, and any `https:` image (download URLs come from `firebasestorage.googleapis.com` + `googleusercontent.com` + `picsum.photos`).
 - **Admin self-protection rule**: an admin can update any user's doc EXCEPT they can't change their own `role` or `is_banned`. Stops a single fat-finger / compromised admin from locking themselves out. The "must keep ≥ 1 admin" check requires a count, which Firestore rules can't express — that lives in the admin-callable Cloud Function plan (B1).
-- **Location search (May 2026)** — replaces the old hardcoded-Berlin stub with real type-ahead via [`place_search_service.dart`](lib/core/services/place_search_service.dart). Uses **Photon** (OpenStreetMap-backed, CORS-friendly, free, no API key) — Google Places REST autocomplete is CORS-blocked from browsers and would need a Cloud Functions proxy (deferred). Picked suggestions land their lat/lng + city straight onto the new Momento, so the Map page renders the pin with no extra plumbing. Switch to Google Places when v1 quality complaints arrive AND a backend proxy is on the roadmap.
+- **Location search (May 2026)** — replaces the old hardcoded-Berlin stub with real type-ahead via [`place_search_service.dart`](lib/core/services/place_search_service.dart). Uses **Google Places API (New)** at `places.googleapis.com/v1/...` — the *new* endpoint (unlike the legacy `maps.googleapis.com/maps/api/place/...`) supports CORS for direct browser calls, so no backend proxy needed. Two-step flow: `autocomplete` returns lightweight `PlacePrediction`s while typing; `resolve(placeId)` fetches lat/lng + city on tap. Auth re-uses the existing `GOOGLE_MAPS_KEY_WEB` repo secret — same key, just needs **Places API (New)** added to its API restrictions in GCP Console (see "Google Maps keys" section). Picked place lands lat/lng + city + formatted address straight onto the new Momento, so the Map page renders the pin with no extra plumbing.
+  - **First swing was Photon** (OpenStreetMap, no API key) — turned out the public `photon.komoot.io` instance does NOT return CORS headers despite some docs claiming otherwise. We hit `Access-Control-Allow-Origin missing` from Chrome on first deploy. Don't go back to it without self-hosting.
 - **Deep link `/momento/:id`** — outside the bottom-nav shell, robust to bad ids (loading + not-found state). Used as the **share target**: detail-screen Share / "Copy link" copies `<origin>/#/momento/{id}` to the clipboard (origin mirrors `Uri.base` on web, hardcoded to `https://momento.community` off-web). In-app two-pane Discover keeps its in-place selection (no URL change) by design — the deep link is the *incoming* sharing surface, not the outgoing in-app nav.
 - **Follows** — `/follows/{follower}_{following}` doc, deterministic id so create/delete are idempotent. Follower count via Firestore `count()` aggregate stream. `FollowButton` hides when viewing yourself. Profile shows real `followers` count for both self mode (signed-in user) and other mode (the user being viewed).
 - **`USE_MOCK_DATA=true`** dart-define bypasses Firestore for offline UI dev + e2e CI. Skips auth gate too.
@@ -143,7 +144,17 @@ gsutil cors get gs://momento-b23c0.firebasestorage.app   # verify
 
 ## Google Maps keys
 
-Three keys, one per platform. Restrict each one in GCP Console:
+Three keys, one per platform. Restrict each one in GCP Console.
+
+**APIs each key must have allowed** (GCP → APIs & Services → Credentials → key → Edit → API restrictions → "Restrict key"):
+- **Maps JavaScript API** (Web key only)
+- **Maps SDK for Android** (Android key only)
+- **Maps SDK for iOS** (iOS key only)
+- **Places API (New)** — needed by every key for the location-search feature. Without this enabled the autocomplete endpoint returns 403.
+
+Also enable the **Places API (New)** product in GCP → APIs & Services → Library → search "Places API (New)" → Enable. The legacy "Places API" doesn't help — we use the new one (different endpoint, supports CORS).
+
+Restrict each one in GCP Console:
 - **Web** → HTTP referrers — must use **wildcard form**, no scheme:
   `momento.community/*`, `*.momento.community/*`, `momento-b23c0.web.app/*`,
   `localhost:*`. If you see `RefererNotAllowedMapError`, the loaded URL

@@ -7,13 +7,12 @@ import '../../config/theme.dart';
 import '../../core/firebase/providers.dart';
 import '../../core/services/place_search_service.dart';
 
-/// Bottom-sheet location picker. Type-ahead → Photon-backed suggestions
-/// → tap → `Navigator.pop(context, PlaceSuggestion)`.
+/// Bottom-sheet location picker. Type-ahead → Google Places autocomplete
+/// predictions → tap → resolve to lat/lng → pop with a `PickedPlace`.
 ///
-/// Used by Create + Momento detail's `_editLocation`. Keeps the network
-/// layer in a service so this widget stays purely presentational.
-Future<PlaceSuggestion?> showLocationSearchSheet(BuildContext context) {
-  return showModalBottomSheet<PlaceSuggestion>(
+/// Used by Create + Momento detail's `_editLocation`.
+Future<PickedPlace?> showLocationSearchSheet(BuildContext context) {
+  return showModalBottomSheet<PickedPlace>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.background,
@@ -36,8 +35,11 @@ class _LocationSearchBodyState extends ConsumerState<_LocationSearchBody> {
   final _controller = TextEditingController();
   Timer? _debounce;
   bool _loading = false;
+  // While we're resolving lat/lng for a tapped prediction. Disables the
+  // list so the user can't tap another row mid-flight.
+  bool _resolving = false;
   String? _error;
-  List<PlaceSuggestion> _suggestions = const [];
+  List<PlacePrediction> _predictions = const [];
   // Tracks which query a pending request was issued for. Out-of-order
   // responses get dropped so a slow earlier request can't overwrite a
   // fresh one.
@@ -55,17 +57,17 @@ class _LocationSearchBodyState extends ConsumerState<_LocationSearchBody> {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
       setState(() {
-        _suggestions = const [];
+        _predictions = const [];
         _loading = false;
         _error = null;
       });
       return;
     }
     setState(() => _loading = true);
-    // 300ms strikes a balance between quick feedback and not hammering the
-    // geocoder on every keystroke. Photon's free tier has rate limits we'd
-    // rather not test.
-    _debounce = Timer(const Duration(milliseconds: 300), () => _search(trimmed));
+    // 300ms balances quick feedback against hammering the autocomplete
+    // endpoint (it's metered + costs money per session).
+    _debounce =
+        Timer(const Duration(milliseconds: 300), () => _search(trimmed));
   }
 
   Future<void> _search(String query) async {
@@ -77,7 +79,7 @@ class _LocationSearchBodyState extends ConsumerState<_LocationSearchBody> {
       // Drop the response if a newer query is already in flight.
       if (_activeQuery != query) return;
       setState(() {
-        _suggestions = results;
+        _predictions = results;
         _loading = false;
         _error = null;
       });
@@ -85,11 +87,29 @@ class _LocationSearchBodyState extends ConsumerState<_LocationSearchBody> {
       if (!mounted) return;
       if (_activeQuery != query) return;
       setState(() {
-        _suggestions = const [];
+        _predictions = const [];
         _loading = false;
         _error = 'Search failed. Check your connection and try again.';
       });
     }
+  }
+
+  Future<void> _pick(PlacePrediction p) async {
+    setState(() {
+      _resolving = true;
+      _error = null;
+    });
+    final picked =
+        await ref.read(placeSearchServiceProvider).resolve(p.placeId);
+    if (!mounted) return;
+    if (picked == null) {
+      setState(() {
+        _resolving = false;
+        _error = "Couldn't load that place. Try another.";
+      });
+      return;
+    }
+    Navigator.pop(context, picked);
   }
 
   @override
@@ -134,6 +154,7 @@ class _LocationSearchBodyState extends ConsumerState<_LocationSearchBody> {
                   autofocus: true,
                   textInputAction: TextInputAction.search,
                   onChanged: _onChanged,
+                  enabled: !_resolving,
                   decoration: InputDecoration(
                     hintText: 'Search a place, address, landmark…',
                     prefixIcon: const Icon(Icons.search_rounded,
@@ -143,10 +164,12 @@ class _LocationSearchBodyState extends ConsumerState<_LocationSearchBody> {
                         : IconButton(
                             icon: const Icon(Icons.close_rounded),
                             color: AppColors.secondaryText,
-                            onPressed: () {
-                              _controller.clear();
-                              _onChanged('');
-                            },
+                            onPressed: _resolving
+                                ? null
+                                : () {
+                                    _controller.clear();
+                                    _onChanged('');
+                                  },
                           ),
                   ),
                 ),
@@ -168,7 +191,7 @@ class _LocationSearchBodyState extends ConsumerState<_LocationSearchBody> {
             style: AppText.bodySmall.copyWith(color: AppColors.error)),
       );
     }
-    if (_loading) {
+    if (_loading || _resolving) {
       return const Padding(
         padding: EdgeInsets.all(AppSpacing.lg),
         child: Center(
@@ -183,32 +206,30 @@ class _LocationSearchBodyState extends ConsumerState<_LocationSearchBody> {
         ),
       );
     }
-    if (_suggestions.isEmpty) {
+    if (_predictions.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
         child: Text(
-          _controller.text.isEmpty
-              ? 'Type to search.'
-              : 'No matches.',
-          style: AppText.labelSmall
-              .copyWith(color: AppColors.secondaryText),
+          _controller.text.isEmpty ? 'Type to search.' : 'No matches.',
+          style:
+              AppText.labelSmall.copyWith(color: AppColors.secondaryText),
         ),
       );
     }
     return ListView.separated(
       shrinkWrap: true,
-      itemCount: _suggestions.length,
+      itemCount: _predictions.length,
       separatorBuilder: (_, _) =>
           const Divider(height: 1, color: AppColors.divider),
       itemBuilder: (_, i) {
-        final s = _suggestions[i];
+        final p = _predictions[i];
         return ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.location_on_outlined,
               color: AppColors.primary),
-          title: Text(s.label,
+          title: Text(p.label,
               maxLines: 2, overflow: TextOverflow.ellipsis),
-          onTap: () => Navigator.pop(context, s),
+          onTap: () => _pick(p),
         );
       },
     );
