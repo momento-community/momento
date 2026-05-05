@@ -114,14 +114,18 @@ All uploads: `Cache-Control: public, max-age=31536000, immutable`.
 
 ## Firestore Storage CORS
 
-Default bucket only allows `*.web.app` / `*.firebaseapp.com`. Custom domains (e.g. `momento.community`) get blocked. Allowed origins in [`storage.cors.json`](storage.cors.json). Apply with:
+Default bucket only allows `*.web.app` / `*.firebaseapp.com`. Custom domains (e.g. `momento.community`) get blocked. Allowed origins in [`storage.cors.json`](storage.cors.json).
+
+**Methods**: `GET`, `HEAD`, `POST`, `PUT`, `DELETE`. Read-only (`GET` + `HEAD`) is enough for browsers to **show** images, but uploads via the Firebase Storage Web SDK use `POST` (multipart) + `PUT` (resumable chunks). If you ever see "Edit photo" / avatar uploads succeed in pickImage but silently fail at the network layer, this is the first thing to check — bucket CORS that's missing `POST`/`PUT` blocks the preflight even before the rule fires.
+
+Apply with:
 
 ```bash
 gsutil cors set storage.cors.json gs://momento-b23c0.firebasestorage.app
 gsutil cors get gs://momento-b23c0.firebasestorage.app   # verify
 ```
 
-If gsutil errors with "Reauthentication required" → `gcloud auth login` first. Re-apply when adding origins.
+**Important**: this file is NOT auto-deployed by any GitHub workflow. You must run `gsutil cors set ...` manually after editing. If gsutil errors with "Reauthentication required" → `gcloud auth login` first.
 
 ## Google Maps keys
 

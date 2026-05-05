@@ -21,7 +21,6 @@ class Momento {
     required this.organizerName,
     required this.organizerAvatarUrl,
     required this.likeCount,
-    required this.viewCount,
     required this.likedBy,
     required this.isActive,
     required this.createdAt,
@@ -46,7 +45,6 @@ class Momento {
   final String organizerName;
   final String organizerAvatarUrl;
   final int likeCount;
-  final int viewCount;
   final List<String> likedBy;
   final bool isActive;
   final DateTime createdAt;
@@ -90,7 +88,6 @@ class Momento {
       organizerName: d['organizer_name'] as String? ?? 'Organizer',
       organizerAvatarUrl: d['organizer_avatar_url'] as String? ?? '',
       likeCount: (d['like_count'] as num?)?.toInt() ?? 0,
-      viewCount: (d['view_count'] as num?)?.toInt() ?? 0,
       likedBy: (d['liked_by'] as List?)?.cast<String>() ?? const [],
       isActive: d['is_active'] as bool? ?? true,
       createdAt: (d['created_at'] as Timestamp?)?.toDate() ?? DateTime.now(),

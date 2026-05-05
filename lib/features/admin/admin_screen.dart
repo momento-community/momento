@@ -806,8 +806,6 @@ class _StatsTab extends ConsumerWidget {
       else if (r == 'organisor') organisors++;
       else plainUsers++;
     }
-    final totalViews =
-        momentos.fold<int>(0, (sum, m) => sum + m.viewCount);
     final totalLikes =
         momentos.fold<int>(0, (sum, m) => sum + m.likeCount);
 
@@ -830,11 +828,6 @@ class _StatsTab extends ConsumerWidget {
           value: '${users.length}',
           subtitle:
               '$admins admin · $organisors organisor · $plainUsers user',
-        ),
-        const SizedBox(height: AppSpacing.md),
-        _StatTile(
-          label: 'Total views',
-          value: _compact(totalViews),
         ),
         const SizedBox(height: AppSpacing.md),
         _StatTile(

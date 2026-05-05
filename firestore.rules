@@ -107,7 +107,6 @@ service cloud.firestore {
         && request.resource.data.location_geopoint is latlng
         && request.resource.data.location_geohash is string
         && request.resource.data.like_count == 0
-        && request.resource.data.view_count == 0
         && request.resource.data.is_active == true
         && request.resource.data.created_at == request.time;
 
@@ -128,12 +127,6 @@ service cloud.firestore {
         && !isBanned()
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['liked_by', 'like_count']);
-
-      // View count — any signed-in user, only `view_count` mutable. The
-      // detail screen calls this on first open from a non-organizer.
-      allow update: if isSignedIn()
-        && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['view_count']);
 
       allow delete: if (isOwner(resource.data.organizer_id) && !isBanned())
         || isAdmin();

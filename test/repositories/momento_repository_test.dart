@@ -49,7 +49,6 @@ void main() {
       'organizer_name': 'Test Org',
       'organizer_avatar_url': '',
       'like_count': likeCount,
-      'view_count': 0,
       'liked_by': likedBy,
       'is_active': isActive,
       'created_at': Timestamp.now(),

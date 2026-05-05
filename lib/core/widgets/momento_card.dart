@@ -102,11 +102,6 @@ class MomentoCard extends StatelessWidget {
                           icon: Icons.favorite_border_rounded,
                           value: momento.likeCount,
                         ),
-                        const SizedBox(width: 10),
-                        _Stat(
-                          icon: Icons.visibility_outlined,
-                          value: momento.viewCount,
-                        ),
                         const Spacer(),
                         _Avatar(url: momento.organizerAvatarUrl),
                       ],

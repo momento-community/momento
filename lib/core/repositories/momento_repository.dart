@@ -136,7 +136,6 @@ class MomentoRepository {
       'organizer_name': organizerName,
       'organizer_avatar_url': organizerAvatarUrl,
       'like_count': 0,
-      'view_count': 0,
       'liked_by': <String>[],
       'is_active': true,
       'created_at': FieldValue.serverTimestamp(),
@@ -186,12 +185,6 @@ class MomentoRepository {
             : FieldValue.arrayUnion([uid]),
         'like_count': FieldValue.increment(isLiked ? -1 : 1),
       });
-    });
-  }
-
-  Future<void> incrementViewCount(String momentoId) {
-    return _col.doc(momentoId).update({
-      'view_count': FieldValue.increment(1),
     });
   }
 
@@ -281,7 +274,6 @@ class MomentoRepository {
         'organizer_name': organizerName,
         'organizer_avatar_url': organizerAvatarUrl,
         'like_count': 0,
-        'view_count': 0,
         'liked_by': const <String>[],
         'is_active': true,
         'created_at': FieldValue.serverTimestamp(),

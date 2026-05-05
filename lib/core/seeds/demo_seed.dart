@@ -107,7 +107,6 @@ class DemoSeed {
         'organizer_name': m.organizerName,
         'organizer_avatar_url': avatarUrlByOrganisor[m.organizerId] ?? '',
         'like_count': 0,
-        'view_count': 0,
         'liked_by': const <String>[],
         'is_active': true,
         'created_at': FieldValue.serverTimestamp(),

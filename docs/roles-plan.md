@@ -106,6 +106,6 @@ them too, easy to add later).
 | Phase | Scope | Status |
 |---|---|---|
 | **R1** | Plan doc, role field default in `ensureUserDoc`, `userRoleProvider`, `upgradeToOrganisor()` repo method, Create-screen role gate, Profile "Become organisor" CTA, Firestore rules with role helpers. | landing now |
-| **R2** | Analytics card on Momento detail (visible only to `organizer_id` or admin). Pulls from existing `view_count`, `like_count`, `liked_by`, plus a small follower-count derivation. | next |
+| **R2** | Analytics card on Momento detail (visible only to `organizer_id` or admin). Pulls from `like_count`, `liked_by`, plus follower count + timing label. (View count was removed — not a metric we want to optimise for.) | next |
 | **R3** | `/admin` route. Three tabs: All Momentos, All Users, Stats. Filter + edit + delete on momentos; role-change dropdown + ban toggle on users. Behind `isAdminProvider` redirect. | follow-up |
 | **R4** | Audit log, ban/suspend, optional moderation queue for organisor self-promotion. | later |

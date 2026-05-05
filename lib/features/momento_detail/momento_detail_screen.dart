@@ -45,23 +45,6 @@ class _MomentoDetailScreenState extends ConsumerState<MomentoDetailScreen> {
   bool _expanded = false;
 
   @override
-  void initState() {
-    super.initState();
-    // Bump view count on first open, but only when the viewer isn't the
-    // organizer themselves — self-views shouldn't pad the analytics.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (Env.useMockData) return;
-      final uid = ref.read(authStateChangesProvider).value?.uid;
-      if (uid != null && uid != widget.momento.organizerId) {
-        ref
-            .read(momentoRepositoryProvider)
-            .incrementViewCount(widget.momento.id);
-      }
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     // Watch the live doc so inline edits land instantly. Fall back to the
     // seed momento until the first snapshot arrives (and on USE_MOCK_DATA
@@ -403,12 +386,46 @@ class _MomentoDetailScreenState extends ConsumerState<MomentoDetailScreen> {
   Future<void> _editPhoto(Momento m) async {
     final picker = ImagePicker();
     final messenger = ScaffoldMessenger.of(context);
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 2400,
-      imageQuality: 88,
-    );
+    // Note: pickImage MUST be invoked synchronously off the user's tap
+    // gesture on web, otherwise Chrome's pop-up blocker can swallow the
+    // file dialog. Both call sites (the hero pill and the menu's "Replace
+    // photo") call this directly without intervening awaits, so the
+    // gesture is still active when we reach here.
+    final XFile? picked;
+    try {
+      picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 2400,
+        imageQuality: 88,
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text("Couldn't open the file picker: $e")),
+      );
+      return;
+    }
     if (picked == null) return;
+    // Long-running upload feedback — Storage round-trip + Firestore patch
+    // can take several seconds on a slow connection, and users were
+    // tapping the button thinking nothing happened.
+    final uploading = SnackBar(
+      content: Row(
+        children: const [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation(AppColors.onPrimary),
+            ),
+          ),
+          SizedBox(width: AppSpacing.md),
+          Text('Uploading photo…'),
+        ],
+      ),
+      duration: const Duration(minutes: 1),
+    );
+    messenger.showSnackBar(uploading);
     try {
       await ref.read(momentoRepositoryProvider).updateMomento(
         id: m.id,
@@ -416,11 +433,15 @@ class _MomentoDetailScreenState extends ConsumerState<MomentoDetailScreen> {
         coverPhoto: picked,
       );
       await _maybeAuditAdminEdit(m, fields: const {'images': '[updated]'});
+      messenger.hideCurrentSnackBar();
       messenger.showSnackBar(
         const SnackBar(content: Text('Photo updated')),
       );
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Update failed: $e')));
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(content: Text('Photo upload failed: $e')),
+      );
     }
   }
 
@@ -865,12 +886,14 @@ class _MetaRow extends StatelessWidget {
   }
 }
 
-class _OrganizerCard extends StatelessWidget {
+class _OrganizerCard extends ConsumerWidget {
   const _OrganizerCard({required this.momento});
   final Momento momento;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final followers =
+        ref.watch(followerCountProvider(momento.organizerId)).value ?? 0;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => momento.pushOrganizerDetail(context),
@@ -903,7 +926,7 @@ class _OrganizerCard extends StatelessWidget {
                       .copyWith(fontWeight: FontWeight.w600),
                 ),
                 Text(
-                  '${momento.likeCount} likes',
+                  '$followers follower${followers == 1 ? '' : 's'}',
                   style: AppText.labelSmall
                       .copyWith(color: AppColors.secondaryText),
                 ),
@@ -982,10 +1005,6 @@ class _ActionRow extends ConsumerWidget {
                   .read(momentoRepositoryProvider)
                   .toggleLike(momento.id, me.uid),
         ),
-        _Action(
-          icon: Icons.visibility_outlined,
-          label: '${momento.viewCount}',
-        ),
         if (momento.eventWebsiteUrl != null)
           _Action(
             icon: Icons.language_rounded,
@@ -1058,8 +1077,8 @@ class _Action extends StatelessWidget {
 }
 
 /// Analytics card visible only to the organizer of this momento and to
-/// admins. v1 surfaces existing counters; reservations + follower delta
-/// arrive when paid Momentos and a richer follow-stream land.
+/// admins. v1 shows likes + timing; reservations + follower delta land
+/// once paid Momentos + a richer follow stream land.
 class _AnalyticsCard extends StatelessWidget {
   const _AnalyticsCard({required this.momento, required this.isAdminView});
   final Momento momento;
@@ -1067,9 +1086,7 @@ class _AnalyticsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final views = momento.viewCount;
     final likes = momento.likeCount;
-    final likeRate = views == 0 ? null : likes / views;
     final timing = _timingLabel(momento);
 
     return Container(
@@ -1104,16 +1121,7 @@ class _AnalyticsCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
-              _Stat(label: 'Views', value: _compact(views)),
-              _StatDivider(),
               _Stat(label: 'Likes', value: _compact(likes)),
-              _StatDivider(),
-              _Stat(
-                label: 'Like rate',
-                value: likeRate == null
-                    ? '—'
-                    : '${(likeRate * 100).toStringAsFixed(0)}%',
-              ),
               _StatDivider(),
               _Stat(label: 'Timing', value: timing),
             ],

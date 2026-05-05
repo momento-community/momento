@@ -47,7 +47,6 @@ void main() {
       'organizer_avatar_url': avatar,
       'is_active': true,
       'like_count': 0,
-      'view_count': 0,
       'liked_by': const <String>[],
       'created_at': Timestamp.now(),
     });

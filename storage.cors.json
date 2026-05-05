@@ -11,8 +11,16 @@
       "http://127.0.0.1",
       "http://127.0.0.1:8080"
     ],
-    "method": ["GET", "HEAD"],
-    "responseHeader": ["Content-Type", "Cache-Control", "Content-Length"],
+    "method": ["GET", "HEAD", "POST", "PUT", "DELETE"],
+    "responseHeader": [
+      "Content-Type",
+      "Content-Length",
+      "Cache-Control",
+      "Authorization",
+      "X-Goog-Resumable",
+      "X-Goog-Upload-URL",
+      "X-Firebase-Storage-Version"
+    ],
     "maxAgeSeconds": 3600
   }
 ]
