@@ -221,12 +221,16 @@ class MomentoRepository {
     await _col.doc(id).update(patch);
   }
 
-  /// Admin-only: every momento in the project, newest first. The rules
-  /// already let public reads on this collection, so this is technically
-  /// available to anyone, but only the admin panel calls it.
-  Stream<List<Momento>> watchAll() {
+  /// Admin-only: latest [limit] momentos in the project, newest first.
+  /// Capped to keep admin panel reads bounded — without the limit a
+  /// growing collection re-streams every doc on every snapshot, which is
+  /// real money once we cross a few hundred Momentos. v1 admin volume
+  /// stays under 100 easily; revisit with cursor-based pagination if
+  /// the panel ever needs to surface older records.
+  Stream<List<Momento>> watchAll({int limit = 100}) {
     return _col
         .orderBy('created_at', descending: true)
+        .limit(limit)
         .snapshots()
         .map(_decodeList);
   }

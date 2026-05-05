@@ -123,10 +123,19 @@ class _CardImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // mem-cache the decoded bitmap at roughly card display size. Without
+    // these, masonry mounts the source-resolution bitmap for every card
+    // (often 2400px from the cover-photo upload) and memory balloons fast.
+    // 600 covers retina display at the wide-desktop card sizes (~280px
+    // logical) without obvious quality loss.
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cachePx = (300 * dpr).round();
     return CachedNetworkImage(
       imageUrl: url,
       fit: BoxFit.cover,
       width: double.infinity,
+      memCacheWidth: cachePx,
+      memCacheHeight: cachePx,
       placeholder: (_, __) => Container(color: AppColors.surface),
       errorWidget: (_, __, ___) => Container(
         color: AppColors.surface,

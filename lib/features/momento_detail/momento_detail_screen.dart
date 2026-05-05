@@ -1034,7 +1034,17 @@ class _ActionRow extends ConsumerWidget {
   }
 
   Future<void> _open(String url) async {
-    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    // Organizers control these URL fields — never trust them at face value.
+    // Reject anything that isn't a real http(s) URL with a host. Skips
+    // `javascript:` / `data:` / `file:` / mailto: etc., which would
+    // otherwise execute in same-origin context on web (stored XSS).
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        !(uri.scheme == 'http' || uri.scheme == 'https') ||
+        uri.host.isEmpty) {
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }
 

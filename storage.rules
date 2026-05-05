@@ -11,8 +11,15 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    // Explicit allowlist — `image/.*` accepts `image/svg+xml`, which can
+    // carry script tags and execute as a stored-XSS vector when loaded
+    // directly (e.g. from a clicked Storage URL). The Flutter clients
+    // only ever upload jpeg / png / webp via `image_picker`, so anything
+    // outside that set is either an attack or a bug worth surfacing.
     function isImage() {
-      return request.resource.contentType.matches('image/.*');
+      return request.resource.contentType == 'image/jpeg'
+          || request.resource.contentType == 'image/png'
+          || request.resource.contentType == 'image/webp';
     }
 
     function under10MB() {
@@ -28,17 +35,23 @@ service firebase.storage {
             .data.get('role', 'user') == 'admin';
     }
 
-    // Avatars: users/{uid}/avatar.{ext}. Self-write or admin-write.
-    match /users/{uid}/{allPaths=**} {
+    // Avatars: exactly `users/{uid}/avatar.jpg` — not `{allPaths=**}`,
+    // which would let a user write arbitrarily-nested paths under their
+    // own scope (cache pollution / billing surprise surface).
+    // `StorageRepository.uploadAvatar` always writes this exact path.
+    match /users/{uid}/avatar.jpg {
       allow read: if true;
       allow write: if (isOwner(uid) || isAdmin())
         && isImage()
         && under10MB();
     }
 
-    // Momento photos: momentos/{organizerUid}/{momentoId}/{file}.
-    // Organizer writes their own; admin writes any.
-    match /momentos/{organizerUid}/{allPaths=**} {
+    // Momento photos: exactly four segments
+    // `momentos/{organizerUid}/{momentoId}/{filename}`. The repo writes a
+    // fresh-uuid filename per upload, so the leaf segment is variable but
+    // the depth is fixed. Tighter than the old `{allPaths=**}` for the
+    // same reason as avatars above.
+    match /momentos/{organizerUid}/{momentoId}/{filename} {
       allow read: if true;
       allow write: if (isOwner(organizerUid) || isAdmin())
         && isImage()

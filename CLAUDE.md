@@ -45,7 +45,7 @@ Flutter 3.38+ · Riverpod 3 (`Notifier` API) · `go_router` · Firebase Auth/Fir
 - `lib/shared/filter_state.dart` — shared filter state for Discover + Map
 - `firestore.rules` · `firestore.indexes.json` · `storage.rules` · `storage.cors.json`
 - `docs/{design-export,roles-plan,responsive-plan}.md`
-- `.github/workflows/{deploy-hosting,deploy-rules,e2e}.yml`
+- `.github/workflows/{deploy-hosting,deploy-rules,flutter-test,e2e,webhook-test}.yml`
 
 ## Routes
 
@@ -67,7 +67,7 @@ In-app navigation uses these URL routes wherever an entity has an id (organizer 
 | **organisor** | + create / edit / delete own + analytics on own |
 | **admin** | + edit / delete *any* + admin panel + manage roles + ban/unban |
 
-Default `user` on signup. Self-service `user → organisor` from Profile or Create. Admin-only-grantable. Banned users keep read access but lose every write (rule-enforced via `is_banned`).
+Default `user` on signup. `user → organisor` is **admin-curated** via the Requests tab in `/admin` (see "Becoming an organisor" below). `organisor → user` (stop hosting) is self-allowed. Other transitions are admin-only. Banned users keep read access but lose every write (rule-enforced via `is_banned`).
 
 **Bootstrap admin:** Firebase Console → Firestore → `users/{uid}` → set `role` = `"admin"`. Full plan: [`docs/roles-plan.md`](docs/roles-plan.md).
 
@@ -85,9 +85,18 @@ Default `user` on signup. Self-service `user → organisor` from Profile or Crea
 - **Inline edit (Momento)** — owner + admin (gated by `canEditMomento` in [`providers.dart`](lib/core/firebase/providers.dart)) get pencil affordances next to title/description/dates/location and a chip for category, plus an "Edit photo" pill on the hero. Edits land via `MomentoRepository.updateMomento` (partial patch + optional Storage re-upload). The detail screen watches `momentoByIdProvider(id)` so writes reflect immediately. Admin edits on someone else's Momento append a `momento.edit` audit log entry; owner self-edits don't.
 - **Inline edit (Profile)** — display_name / city / bio are tap-to-edit pencils on Profile; avatar is tap-to-upload (camera badge bottom-right of the ring). Display reads from `users/{uid}` via `currentUserDocProvider` (Firestore is the source of truth — Auth fields are only fallbacks for the brief window before `ensureUserDoc` lands the doc). Avatar bytes go to `users/{uid}/avatar.jpg` via `StorageRepository.uploadAvatar`, then the URL is patched into `avatar_url`. The Firestore rule for `users/{uid}` already allows partial updates that don't touch `is_premium` / `is_banned` / `role` — no rule changes needed.
 - **Profile fan-out** — `UserRepository.updateProfile` watches for `display_name` / `avatar_url` in the patch and, when present, batch-updates `organizer_name` / `organizer_avatar_url` on every Momento where `organizer_id == uid`. Single batched `WriteBatch` chunked at 450 ops to stay under Firestore's 500-write batch limit. Bio / city / role / freemium patches skip the fan-out (the denormalised fields aren't affected). Without this, edits to your name or photo would only show on **new** Momentos — old ones would keep displaying the snapshot baked in at create time. Tested in [`test/repositories/user_repository_test.dart`](test/repositories/user_repository_test.dart).
-- **Unified profile (`/profile` + `/u/:id`)** — one `ProfileScreen(userId)` widget powers both the bottom-nav tab (self) and the deep-link route (any user). `userId == null` or `userId == auth.uid` → self mode (inline edits, role card, freemium, dev seed, logout). Other uid → `_OtherProfileBody` (read-only header + Follow + Message + their active Momentos). Reads the live `users/{uid}` doc via `userDocByIdProvider` — falls back to denormalised fields on a hosted Momento when the doc errors (mock-data builds, transient blips, deleted accounts) so the screen always renders something useful. The old standalone `OrganizerDetailScreen` is gone; the `Momento.pushOrganizerDetail` extension is now a thin wrapper that does `context.push('/u/$organizerId')`, so every organizer-card tap puts the user's id in the URL.
+- **Unified profile (`/profile` + `/u/:id`)** — one `ProfileScreen(userId)` widget powers both the bottom-nav tab (self) and the deep-link route (any user). `userId == null` or `userId == auth.uid` → self mode (inline edits, role card, freemium, dev seed, logout). Other uid → `_OtherProfileBody` (read-only header + Follow + Message + their active Momentos). Reads the live `users/{uid}` doc via `userDocByIdProvider` — falls back to denormalised fields on a hosted Momento when the doc errors (mock-data builds, transient blips, deleted accounts) so the screen always renders something useful. The old standalone `OrganizerDetailScreen` is gone; the `Momento.pushOrganizerDetail` extension does `Navigator.push(slideUpRoute(ProfileScreen(userId: id)))` for in-app taps (mixing `context.push` here with the Navigator-pushed Momento detail confuses go_router's page list). The `/u/:id` go_router route stays as the canonical share URL for incoming links.
+- **Removed in May 2026**: view count on Momentos (`view_count` field, `incrementViewCount`, eye-icon stats, "Total views" admin tile, the related Firestore rule clauses) — not a metric we want to optimise for. Organizer card on Momento detail also flipped from "{N} likes" to "{N} followers" via `followerCountProvider`, so the card reflects the social graph not the per-Momento heart count.
+- **Security + perf hardening (May 2026)**:
+  - **URL launches are scheme-restricted**: organizer-controlled URLs (event website / IG / Eventbrite / other ticket) are filtered to `http`/`https` with a non-empty host before `launchUrl`. Closes a stored-XSS vector via `javascript:` / `data:` URIs. See `_open` in [`momento_detail_screen.dart`](lib/features/momento_detail/momento_detail_screen.dart).
+  - **Storage uploads are MIME-allowlisted**: `isImage()` in [`storage.rules`](storage.rules) accepts `image/jpeg` / `image/png` / `image/webp` only — no more `image/svg+xml` (SVGs can carry script tags).
+  - **Storage paths are exact-shape**: `users/{uid}/avatar.jpg` and `momentos/{organizerUid}/{momentoId}/{filename}` — replaced the prior `{allPaths=**}` globs that allowed arbitrary nesting under user/organizer scope.
+  - **Audit-log field allowlist**: [`audit_log_repository.dart`](lib/core/repositories/audit_log_repository.dart) silently drops keys outside `_allowedDiffFields`. Defends against careless callers leaking PII into the permanent log. Add new keys deliberately as new audit codes land.
+  - **Admin streams are bounded**: `MomentoRepository.watchAll` and `UserRepository.watchAllUsers` cap at 100 newest by default. Switch to cursor pagination if the panel needs to surface older records.
+  - **`MomentoCard` images use `memCacheWidth`/`memCacheHeight`** sized to ~300 logical pixels × DPR. Without this, masonry holds the source-resolution bitmap (often 2400px from cover-photo upload) for every visible card.
+  - **`followerCountProvider` is a `FutureProvider` using Firestore `count()` aggregate** — billed as 1 read instead of N. One-shot, so a freshly-toggled follow doesn't auto-update the badge until the screen rebuilds; that's intentional. `ref.invalidate(followerCountProvider(uid))` after a follow toggle if you need the count to bump immediately.
 - **Deep link `/momento/:id`** — outside the bottom-nav shell, robust to bad ids (loading + not-found state). Used as the **share target**: detail-screen Share / "Copy link" copies `<origin>/#/momento/{id}` to the clipboard (origin mirrors `Uri.base` on web, hardcoded to `https://momento.community` off-web). In-app two-pane Discover keeps its in-place selection (no URL change) by design — the deep link is the *incoming* sharing surface, not the outgoing in-app nav.
-- **Follows** — `/follows/{follower}_{following}` doc, deterministic id so create/delete are idempotent. Follower count via Firestore `count()` aggregate stream. `FollowButton` hides when viewing yourself. Profile shows real `followers` count for the signed-in user; organizer detail shows it for the organizer.
+- **Follows** — `/follows/{follower}_{following}` doc, deterministic id so create/delete are idempotent. Follower count via Firestore `count()` aggregate stream. `FollowButton` hides when viewing yourself. Profile shows real `followers` count for both self mode (signed-in user) and other mode (the user being viewed).
 - **`USE_MOCK_DATA=true`** dart-define bypasses Firestore for offline UI dev + e2e CI. Skips auth gate too.
 - Flutter web semantics enabled in `main.dart` so Playwright can query `<flt-semantics>` aria-labels. Icon-only widgets (e.g. `LikeButton`) wrap themselves in `Semantics(label: …)` so they're queryable + screen-readable.
 - **Responsive layouts** (`docs/responsive-plan.md`). Breakpoints: tablet 720, desktop 1080, wide 1440, ultrawide 1600. Every screen body sits inside a `ResponsiveContent(maxWidth: …)` (480 / 560 / 720 / 1080 by intent). `MainShell` switches between **bottom nav** (< 720) and **NavigationRail** (≥ 720; collapsed 720–1080, extended ≥ 1080). Discover goes **two-pane** at ≥ 1600 — masonry left, embedded `MomentoDetailScreen` right; tapping a card sets `selectedMomentoIdProvider` (Riverpod `Notifier`) instead of pushing a route, so the URL doesn't change. Below 1600 the slide-up modal is unchanged.
@@ -166,6 +175,14 @@ Re-trigger the failed deploy via Actions → Deploy Hosting / Deploy Rules → *
 
 Long-term: switch to **Workload Identity Federation** (GitHub OIDC → GCP, no long-lived secrets, never expires). Blocked today by the org policy `iam.disableServiceAccountKeyCreation` that pushed us to FIREBASE_TOKEN in the first place — WIF is the policy-friendly path forward.
 
+## CI alerts (Slack webhook)
+
+Every workflow (`deploy-hosting`, `deploy-rules`, `flutter-test`, `e2e`) ships a final on-failure step that POSTs to the `CI_FAILURE_WEBHOOK_URL` repo secret. Slack incoming webhook URLs work directly; Discord URLs work too if you append `/slack` to the webhook URL.
+
+Failure pings only fire on `push`/`schedule`/`workflow_dispatch` runs against `main` (PR runs are silenced — they're the author's responsibility) and skip cleanly when the secret isn't set.
+
+**Verify Slack delivery on demand**: GitHub → Actions → **Webhook test** → Run workflow → main → Run. Uses `curl -fsS` so the run goes red iff the secret is missing or Slack rejects the payload, green iff a "✅ Webhook test from Momentō CI" message lands in Slack.
+
 ## OAuth authorized domains
 
 Custom domains aren't auto-added by Firebase Hosting. Manual:
@@ -181,10 +198,10 @@ Specs live in `e2e/tests/`. CI (`.github/workflows/e2e.yml`) runs them all again
 | Spec | What it pins |
 |---|---|
 | `smoke` | App boots → /discover, auth screen reachable, brand assets (`favicon.svg/png`, `manifest.json`) serve correctly |
-| `discover` | Masonry renders mock fixture, card tap → detail, organizer card → organizer screen |
+| `discover` | Masonry renders mock fixture, card tap → detail, organizer card → ProfileScreen (other-mode) header with "X active Momentos · Y followers" + Message |
 | `filter` | Filter sheet opens, categories visible, Apply / Reset |
 | `map` | Search + filter chrome + Map/Grid toggle |
-| `roles` | Plain user sees "Become an organisor" upgrade card; analytics card hidden |
+| `roles` | Plain user sees "Want to host? / Request to host" upgrade card; analytics card hidden |
 | `social` | Like-button heart present on cards + detail (substring aria-label match — Tooltip's label is merged into the card group) |
 | `profile` | "Created Momentos" / "Liked" tabs, "Created" / "Liked" / "Followers" stats, freemium card |
 | `responsive` | Mobile shows bottom nav; tablet shows collapsed rail; desktop shows extended rail with labels. Discover masonry has 2 / 2 / ≥3 cols at mobile / tablet / desktop. At ultrawide (≥ 1600), Discover goes two-pane: empty placeholder on the right by default, tapping a card populates the detail there in-place (no URL change), masonry stays at 2 cols in the narrower left pane. |

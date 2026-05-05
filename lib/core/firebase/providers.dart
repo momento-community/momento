@@ -67,16 +67,22 @@ final isFollowingProvider =
       );
 });
 
-/// Live follower count for any user (organisor surface). Re-runs on every
-/// follow/unfollow under the listener, since the underlying query stream
-/// will emit. We use a stream that reissues count() on every change.
+/// Follower count for any user (organisor surface). Uses Firestore's
+/// `count()` aggregate query — billed as **1 read** regardless of follower
+/// count, vs the prior `.snapshots()` listener that read every doc. Trade-
+/// off: this is one-shot, so a brand-new follow doesn't auto-update the
+/// number on screen until the screen rebuilds (route push, pull-to-refresh,
+/// `ref.invalidate(followerCountProvider(uid))` after a follow toggle).
+/// For Pinterest-style profiles that's fine; reactivity is rarely
+/// load-bearing.
 final followerCountProvider =
-    StreamProvider.family<int, String>((ref, followingId) {
+    FutureProvider.family<int, String>((ref, followingId) async {
   final col = ref.watch(firestoreProvider).collection('follows');
-  return col
+  final snap = await col
       .where('following_id', isEqualTo: followingId)
-      .snapshots()
-      .map((q) => q.size);
+      .count()
+      .get();
+  return snap.count ?? 0;
 });
 
 

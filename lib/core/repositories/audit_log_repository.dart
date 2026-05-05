@@ -30,6 +30,22 @@ class AuditLogRepository {
   CollectionReference<Map<String, dynamic>> get _col =>
       _firestore.collection('audit_log');
 
+  /// Whitelist of field names admins may store in `before` / `after`.
+  /// Any other key is dropped silently — defends against a careless
+  /// caller leaking PII (passwords, tokens, full user docs) into the
+  /// permanent log. Add new entries deliberately as new audit codes
+  /// arrive.
+  static const _allowedDiffFields = <String>{
+    'title',
+    'description',
+    'images',
+    'organizer_id',
+    'role',
+    'is_banned',
+    'reason',
+    'decided_reason',
+  };
+
   Future<void> log({
     required User actor,
     required String action,
@@ -44,10 +60,18 @@ class AuditLogRepository {
       'action': action,
       'target_type': targetType,
       'target_id': targetId,
-      'before': before,
-      'after': after,
+      'before': _filter(before),
+      'after': _filter(after),
       'created_at': FieldValue.serverTimestamp(),
     });
+  }
+
+  static Map<String, Object?>? _filter(Map<String, Object?>? m) {
+    if (m == null) return null;
+    return {
+      for (final e in m.entries)
+        if (_allowedDiffFields.contains(e.key)) e.key: e.value,
+    };
   }
 
   Stream<List<DocumentSnapshot<Map<String, dynamic>>>> watchRecent({

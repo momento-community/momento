@@ -47,11 +47,16 @@ class UserRepository {
     return _users.doc(uid).update({'is_banned': banned});
   }
 
-  /// Admin-only: stream every user doc, newest first. Cheap for v1 scale
-  /// (a few hundred users); switch to paginated queries once we cross ~1k.
-  Stream<List<DocumentSnapshot<Map<String, dynamic>>>> watchAllUsers() {
+  /// Admin-only: latest [limit] user docs, newest first. Capped at 100
+  /// by default to keep the admin Users tab cheap on a growing collection
+  /// — switch to cursor-based pagination if we ever need to surface older
+  /// users than the most recent batch.
+  Stream<List<DocumentSnapshot<Map<String, dynamic>>>> watchAllUsers({
+    int limit = 100,
+  }) {
     return _users
         .orderBy('created_at', descending: true)
+        .limit(limit)
         .snapshots()
         .map((q) => q.docs);
   }
