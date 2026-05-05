@@ -13,6 +13,7 @@ import '../../core/firebase/providers.dart';
 import '../../core/models/momento_category.dart';
 import '../../core/repositories/momento_repository.dart';
 import '../../core/repositories/organisor_requests_repository.dart';
+import 'location_search_sheet.dart';
 import '../../core/widgets/category_chip.dart';
 import '../../core/widgets/momento_button.dart';
 import '../../core/widgets/responsive_content.dart';
@@ -30,7 +31,13 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   MomentoCategory? _category;
   DateTime? _start;
   DateTime? _end;
+  // Set together by the location-search sheet — the trio always lands as
+  // a single result so we never end up with a label + stale coords or
+  // vice-versa.
   String? _locationLabel;
+  String? _locationCity;
+  double? _locationLat;
+  double? _locationLng;
   XFile? _coverPhoto;
   bool _publishing = false;
 
@@ -116,7 +123,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       );
       return;
     }
-    if (_locationLabel == null) {
+    if (_locationLabel == null ||
+        _locationLat == null ||
+        _locationLng == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Pick a location for your Momento')),
       );
@@ -144,10 +153,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           startDateTime: _start!,
           endDateTime: _end!,
           locationAddress: _locationLabel!,
-          locationCity: 'Berlin',
-          // TODO: real geocoding once Maps key lands.
-          lat: 52.5200,
-          lng: 13.4050,
+          locationCity:
+              (_locationCity ?? '').isEmpty ? 'Unknown' : _locationCity!,
+          lat: _locationLat!,
+          lng: _locationLng!,
           coverPhoto: _coverPhoto,
         ),
       );
@@ -270,8 +279,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                   _Label('WHERE'),
                   const SizedBox(height: AppSpacing.sm),
                   _LocationTile(
-                    label: _locationLabel ?? 'Set location',
-                    onTap: () => _showLocationStub(),
+                    label: _locationLabel ?? 'Search a place',
+                    onTap: _pickLocation,
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   _Label('DESCRIPTION'),
@@ -308,53 +317,15 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     );
   }
 
-  void _showLocationStub() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.background,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
-      ),
-      builder: (_) {
-        final addresses = const [
-          'Tiergarten — entrance Brandenburger Tor',
-          '124 Creative District, Warehouse B',
-          'Old Square',
-          'Cellar Bar, Friedrichstraße 12',
-          'Rooftop, Mitte',
-        ];
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Pick a location (mock)', style: AppText.titleMedium),
-                const SizedBox(height: AppSpacing.md),
-                ...addresses.map((a) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.location_on_outlined,
-                          color: AppColors.primary),
-                      title: Text(a),
-                      onTap: () {
-                        setState(() => _locationLabel = a);
-                        Navigator.pop(context);
-                      },
-                    )),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Map picker arrives with Google Maps in Phase 3 polish.',
-                  style: AppText.labelSmall
-                      .copyWith(color: AppColors.secondaryText),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+  Future<void> _pickLocation() async {
+    final picked = await showLocationSearchSheet(context);
+    if (picked == null) return;
+    setState(() {
+      _locationLabel = picked.label;
+      _locationCity = picked.city;
+      _locationLat = picked.lat;
+      _locationLng = picked.lng;
+    });
   }
 }
 

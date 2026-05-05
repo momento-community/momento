@@ -13,6 +13,7 @@ import '../repositories/momento_repository.dart';
 import '../repositories/organisor_requests_repository.dart';
 import '../repositories/storage_repository.dart';
 import '../repositories/user_repository.dart';
+import '../services/place_search_service.dart';
 
 final firebaseAuthProvider = Provider<FirebaseAuth>((_) => FirebaseAuth.instance);
 final firestoreProvider =
@@ -143,6 +144,10 @@ final adminAuditLogProvider = StreamProvider((ref) {
 final organisorRequestsRepositoryProvider =
     Provider<OrganisorRequestsRepository>((ref) {
   return OrganisorRequestsRepository(ref.watch(firestoreProvider));
+});
+
+final placeSearchServiceProvider = Provider<PlaceSearchService>((_) {
+  return PlaceSearchService();
 });
 
 /// Live state of the signed-in user's organisor request — null when never

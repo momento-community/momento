@@ -22,6 +22,7 @@ import '../../core/widgets/momento_button.dart';
 import '../../core/widgets/momento_card.dart';
 import '../../core/widgets/responsive_content.dart';
 import '../../core/widgets/slide_up_route.dart';
+import '../create/location_search_sheet.dart';
 import '../discover/discover_providers.dart';
 import '../organizer/organizer_detail_screen.dart';
 
@@ -86,11 +87,7 @@ class _MomentoDetailScreenState extends ConsumerState<MomentoDetailScreen> {
                   automaticallyImplyLeading: false,
                   leading: const SizedBox.shrink(),
                   flexibleSpace: FlexibleSpaceBar(
-                    background: _Hero(
-                      momento: m,
-                      canEdit: canEdit,
-                      onEditPhoto: () => _editPhoto(m),
-                    ),
+                    background: _Hero(momento: m),
                   ),
                 ),
                 SliverToBoxAdapter(
@@ -364,20 +361,12 @@ class _MomentoDetailScreenState extends ConsumerState<MomentoDetailScreen> {
   }
 
   Future<void> _editLocation(Momento m) async {
-    final picked = await showModalBottomSheet<_LocationChoice>(
-      context: context,
-      backgroundColor: AppColors.background,
-      shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppRadii.lg)),
-      ),
-      builder: (_) => const _LocationPicker(),
-    );
+    final picked = await showLocationSearchSheet(context);
     if (picked == null) return;
     final geo = GeoFirePoint(GeoPoint(picked.lat, picked.lng));
     await _patch(m, {
-      'location_address': picked.address,
-      'location_city': picked.city,
+      'location_address': picked.label,
+      'location_city': picked.city.isEmpty ? 'Unknown' : picked.city,
       'location_geopoint': GeoPoint(picked.lat, picked.lng),
       'location_geohash': geo.geohash,
     });
@@ -678,14 +667,8 @@ class _MomentoDetailScreenState extends ConsumerState<MomentoDetailScreen> {
 }
 
 class _Hero extends StatelessWidget {
-  const _Hero({
-    required this.momento,
-    required this.canEdit,
-    required this.onEditPhoto,
-  });
+  const _Hero({required this.momento});
   final Momento momento;
-  final bool canEdit;
-  final VoidCallback onEditPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -698,16 +681,10 @@ class _Hero extends StatelessWidget {
           placeholder: (_, _) => Container(color: AppColors.surface),
           errorWidget: (_, _, _) => Container(color: AppColors.surface),
         ),
-        if (canEdit)
-          Positioned(
-            right: AppSpacing.md,
-            bottom: AppSpacing.md,
-            child: _PillButton(
-              icon: Icons.image_outlined,
-              label: 'Edit photo',
-              onTap: onEditPhoto,
-            ),
-          ),
+        // The "Edit photo" affordance lives in the top-right `…` menu's
+        // "Replace photo" entry — keeps the hero clean + avoids the
+        // FlexibleSpaceBar hit-testing quirk that swallowed taps when the
+        // pill sat at the bottom of the parallax background.
         // subtle bottom fade so the rounded card edge is visible
         Positioned(
           left: 0,
@@ -728,46 +705,6 @@ class _Hero extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _PillButton extends StatelessWidget {
-  const _PillButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.background,
-      borderRadius: BorderRadius.circular(AppRadii.full),
-      elevation: 1,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadii.full),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 16, color: AppColors.primaryText),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: AppText.labelMedium
-                    .copyWith(fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -1249,93 +1186,6 @@ class _StickyReserveBar extends StatelessWidget {
           ),
         ],
       ),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────
-// Location picker (mock fixture mirrors CreateScreen — until real
-// geocoding lands the choice is from a small canned list).
-// ──────────────────────────────────────────────────────────────────────
-
-class _LocationChoice {
-  const _LocationChoice({
-    required this.address,
-    required this.city,
-    required this.lat,
-    required this.lng,
-  });
-  final String address;
-  final String city;
-  final double lat;
-  final double lng;
-}
-
-class _LocationPicker extends StatelessWidget {
-  const _LocationPicker();
-
-  static const List<_LocationChoice> _options = [
-    _LocationChoice(
-      address: 'Tiergarten — entrance Brandenburger Tor',
-      city: 'Berlin',
-      lat: 52.5163,
-      lng: 13.3777,
-    ),
-    _LocationChoice(
-      address: '124 Creative District, Warehouse B',
-      city: 'Berlin',
-      lat: 52.5074,
-      lng: 13.4408,
-    ),
-    _LocationChoice(
-      address: 'Old Square',
-      city: 'Berlin',
-      lat: 52.5170,
-      lng: 13.4060,
-    ),
-    _LocationChoice(
-      address: 'Cellar Bar, Friedrichstraße 12',
-      city: 'Berlin',
-      lat: 52.5208,
-      lng: 13.3878,
-    ),
-    _LocationChoice(
-      address: 'Rooftop, Mitte',
-      city: 'Berlin',
-      lat: 52.5246,
-      lng: 13.4031,
-    ),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Pick a location (mock)', style: AppText.titleMedium),
-            const SizedBox(height: AppSpacing.md),
-            for (final o in _options)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.location_on_outlined,
-                    color: AppColors.primary),
-                title: Text(o.address),
-                onTap: () => Navigator.pop(context, o),
-              ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Map picker arrives with Google Maps in Phase 3 polish.',
-              style: AppText.labelSmall
-                  .copyWith(color: AppColors.secondaryText),
-            ),
-          ],
-        ),
       ),
     );
   }
