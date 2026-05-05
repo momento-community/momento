@@ -75,9 +75,20 @@ service cloud.firestore {
           )
         );
 
-      // Admin can update any user doc, including role transitions and the
-      // ban flag.
-      allow update: if isAdmin();
+      // Admin can update any user doc, EXCEPT they can't change their own
+      // `role` or `is_banned`. Stops a single compromised admin (or fat-
+      // fingered admin) from demoting / banning themselves out of the
+      // panel — recovery would otherwise require Firebase Console access.
+      // Role demotion of OTHER admins is still allowed here; "must keep
+      // ≥1 admin" lives in the admin-callable Cloud Function (B1, later).
+      allow update: if isAdmin()
+        && (
+          request.auth.uid != uid
+          || (
+            request.resource.data.get('role', 'user') == resource.data.get('role', 'user')
+            && request.resource.data.get('is_banned', false) == resource.data.get('is_banned', false)
+          )
+        );
 
       allow create: if isAdmin();
     }

@@ -40,10 +40,12 @@ jobs:
       - name: Build web
         env:
           GOOGLE_MAPS_KEY_WEB: ${{ secrets.GOOGLE_MAPS_KEY_WEB }}
+          APP_CHECK_RECAPTCHA_SITE_KEY: ${{ secrets.APP_CHECK_RECAPTCHA_SITE_KEY }}
         run: |
           flutter build web --release \
             --no-tree-shake-icons \
-            --dart-define=GOOGLE_MAPS_KEY_WEB="$GOOGLE_MAPS_KEY_WEB"
+            --dart-define=GOOGLE_MAPS_KEY_WEB="$GOOGLE_MAPS_KEY_WEB" \
+            --dart-define=APP_CHECK_RECAPTCHA_SITE_KEY="$APP_CHECK_RECAPTCHA_SITE_KEY"
 
       - name: Inject Google Maps web key into index.html
         env:
