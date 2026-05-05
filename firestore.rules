@@ -113,6 +113,23 @@ service cloud.firestore {
 
       allow update: if isAdmin();
 
+      // Likes — any signed-in non-banned user, but they can ONLY mutate
+      // `liked_by` + `like_count`. Other fields (title, location, …) stay
+      // locked to the organizer. The transaction in `toggleLike` already
+      // enforces "user can only add/remove their own uid", so we don't
+      // also gate that here — keeps the rule readable. A misbehaving
+      // client could only desync a counter, not corrupt content.
+      allow update: if isSignedIn()
+        && !isBanned()
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['liked_by', 'like_count']);
+
+      // View count — any signed-in user, only `view_count` mutable. The
+      // detail screen calls this on first open from a non-organizer.
+      allow update: if isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['view_count']);
+
       allow delete: if (isOwner(resource.data.organizer_id) && !isBanned())
         || isAdmin();
     }
