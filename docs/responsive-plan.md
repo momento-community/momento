@@ -1,6 +1,6 @@
 # Responsive design plan
 
-Status: Phase 1 in progress. Phase 2 (NavigationRail) approved, lands in a follow-up PR. Phase 3 deferred.
+Status: Phase 1 + Phase 2 shipped. Phase 3 deferred.
 
 ## 0. Diagnosis
 
@@ -77,16 +77,18 @@ Done in this PR. **Zero new behaviour, just centering.** Fixes ~80 % of the symp
 | `map_screen.dart` | n/a (map full-bleed) | Top chrome wrapped at 720 |
 | `filter_bottom_sheet.dart` | 560 | Cap modal width |
 
-## 5. Phase 2 — NavigationRail (≥ tablet) — APPROVED, separate PR
+## 5. Phase 2 — NavigationRail (≥ tablet) — DONE
 
-`MainShell` switches between `BottomNavigationBar` (mobile) and `NavigationRail` (≥ 720 px) based on `MediaQuery.sizeOf(context).width`.
+`MainShell` switches between `BottomNavigationBar` (mobile) and `NavigationRail` (≥ 720 px) based on `context.isMobile` from the breakpoint extension.
 
-- Bottom nav: unchanged on mobile.
-- NavigationRail: 5 destinations (Discover / Map / My Moments / Create / Profile). Centre Ō badge moves to a top app bar at the rail's top, taking the wordmark's slot.
-- Logo + role banner sit above the rail in a small header.
-- The rail is **collapsed** (icon only) below 1080, **labelled** (icon + text) at ≥ 1080.
+- Bottom nav: unchanged on mobile (centre Ō badge denotes My Moments).
+- NavigationRail: 5 destinations. Leading slot shows **OBadge** (collapsed) or **MOMENTŌ wordmark** (extended) as branding; My Moments uses a regular bookmark icon in the rail (the centre-Ō treatment lives only in the bottom nav).
+- The rail is **collapsed** (icon only) below 1080, **extended** (icon + text labels) at ≥ 1080.
+- Selected destination uses the primary tint + a soft pill indicator.
 
-Estimated effort: ~2 hrs.
+**Caveat surfaced during e2e:** Flutter Web paints NavigationRail destination labels and the leading wordmark to canvas without queryable semantics, so DOM-level text assertions for rail copy are flaky. We instead test geometry signals — first-card column count and X-offset — which capture the same outcome reliably. See `e2e/tests/responsive.spec.ts`.
+
+**Viewport sizing for tests:** the desktop project is 1440 (not 1280) so that with the extended rail (~220 px), the remaining content width still clears the 1080 breakpoint and the masonry flips to 3 cols. A 1280 viewport leaves only ~1060 px of content area — *just below* the breakpoint.
 
 ## 6. Phase 3 — deferred
 

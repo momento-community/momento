@@ -36,10 +36,24 @@ export default defineConfig({
       },
     },
     {
+      // 1024×768 sits between Breakpoints.tablet (720) and
+      // Breakpoints.desktop (1080), so this project exercises the
+      // collapsed-NavigationRail variant (icons only, no labels).
+      name: "tablet-viewport",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1024, height: 768 },
+      },
+    },
+    {
+      // 1440 wide so that with the extended NavigationRail (~220 px) the
+      // remaining content width still clears Breakpoints.desktop (1080)
+      // and the Discover masonry flips to 3-col. Anything narrower than
+      // ~1300 lets the rail eat the desktop breakpoint.
       name: "chromium-desktop",
       use: {
         ...devices["Desktop Chrome"],
-        viewport: { width: 1280, height: 900 },
+        viewport: { width: 1440, height: 900 },
       },
     },
   ],
