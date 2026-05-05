@@ -14,16 +14,19 @@ import { flutterText, waitForRoute } from "../helpers";
  */
 
 test.describe("roles — user (mock-data default)", () => {
-  test("Profile shows the 'Become an organisor' upgrade card", async ({
+  test("Profile shows the 'Request to host' upgrade card", async ({
     page,
   }) => {
     await page.goto("/#/profile");
     await page.waitForTimeout(1_500);
-    // The role banner copy is unique to the user role.
+    // The role banner copy is unique to the user role. Plain users see
+    // the request-to-host CTA — admin approval is required to be
+    // promoted to organisor (the `Become an organisor` self-service
+    // path was removed in May 2026).
     await expect(flutterText(page, "Want to host?")).toBeVisible({
       timeout: 8_000,
     });
-    await expect(flutterText(page, "Become an organisor")).toBeVisible();
+    await expect(flutterText(page, "Request to host")).toBeVisible();
   });
 
   test("Create tab shows the upgrade panel, not the form", async ({
@@ -34,7 +37,7 @@ test.describe("roles — user (mock-data default)", () => {
     await expect(flutterText(page, "Want to host?")).toBeVisible({
       timeout: 8_000,
     });
-    await expect(flutterText(page, "Become an organisor")).toBeVisible();
+    await expect(flutterText(page, "Request to host")).toBeVisible();
     // Form labels from the real Create form must NOT be visible while the
     // upgrade panel is rendered.
     await expect(page.locator('[aria-label="TITLE"]')).toHaveCount(0);
