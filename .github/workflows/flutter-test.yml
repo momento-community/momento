@@ -1,0 +1,39 @@
+name: Flutter test (unit + widget)
+
+# Runs `flutter test` for the Dart-side test suite (everything in `test/`).
+# Cheap (~30 s) and complementary to the e2e suite — catches repository /
+# provider / pure-function bugs that don't surface in the rendered UI.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flutter-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: flutter test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.38.x"
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test --reporter expanded

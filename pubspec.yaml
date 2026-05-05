@@ -57,6 +57,13 @@ dev_dependencies:
   json_serializable: any
   riverpod_generator: any
 
+  # Testing — fake_cloud_firestore implements the full Firestore API in
+  # memory (transactions, queries, snapshots) so repository tests run
+  # without an emulator. mocktail covers everything else (repo doubles
+  # in widget tests, etc.).
+  fake_cloud_firestore: any
+  mocktail: any
+
 flutter:
   uses-material-design: true
   assets:

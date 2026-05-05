@@ -5,6 +5,11 @@ on:
     branches: [main]
   push:
     branches: [main]
+  schedule:
+    # Nightly run (04:00 UTC = 06:00 Brussels) catches transitive-dep
+    # regressions — Playwright / Flutter SDK security releases that don't
+    # ship with our changes but break our build.
+    - cron: "0 4 * * *"
   workflow_dispatch:
 
 permissions:
@@ -85,3 +90,20 @@ jobs:
           name: playwright-traces
           path: e2e/test-results
           retention-days: 7
+
+      # Notify a webhook on red main / scheduled-run failures. Skipped when
+      # the secret isn't set, so this is a no-op until you add it.
+      #
+      # Configure: GitHub → Settings → Secrets → Actions → New secret named
+      # `CI_FAILURE_WEBHOOK_URL`. Slack incoming webhook URL works directly.
+      # Discord URLs work too if you append `/slack` to the webhook URL —
+      # Discord's Slack-compat endpoint accepts the same payload shape.
+      - name: Notify webhook on failure
+        if: failure() && github.event_name != 'pull_request' && env.WEBHOOK_URL != ''
+        env:
+          WEBHOOK_URL: ${{ secrets.CI_FAILURE_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -sS -X POST -H "Content-Type: application/json" \
+            -d "{\"text\":\"❌ e2e failed on \`${{ github.ref_name }}\` — <${RUN_URL}|view run>\nCommit: \`${{ github.sha }}\` by ${{ github.actor }}\nEvent: ${{ github.event_name }}\"}" \
+            "$WEBHOOK_URL" || echo "Webhook POST failed; not blocking the run."
